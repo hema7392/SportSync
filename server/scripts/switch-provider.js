@@ -1,7 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const targetProvider = process.argv[2] || 'sqlite';
+let targetProvider = process.argv[2];
+
+if (!targetProvider) {
+  const dbUrl = process.env.DATABASE_URL || '';
+  if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
+    targetProvider = 'postgresql';
+  } else {
+    targetProvider = 'sqlite';
+  }
+}
+
 if (!['sqlite', 'postgresql'].includes(targetProvider)) {
   console.error('Invalid provider. Use "sqlite" or "postgresql".');
   process.exit(1);

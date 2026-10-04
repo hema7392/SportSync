@@ -1,0 +1,34 @@
+services:
+  # Web Service running full-stack Express + React SPA
+  - type: web
+    name: sportsync
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm run render-build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sportsync-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@sportsync.local
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: ADMIN_NAME
+        value: System Administrator
+
+databases:
+  # Managed PostgreSQL Database on Render
+  - name: sportsync-db
+    plan: free
+    region: oregon
+    databaseName: sportsync
+    user: sportsync_user
