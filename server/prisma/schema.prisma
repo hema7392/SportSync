@@ -1,0 +1,78 @@
+// Prisma Schema for SportSync (Sports Scheduler)
+// WD501 Advanced Backend Capstone Project
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int                  @id @default(autoincrement())
+  name             String
+  email            String               @unique
+  passwordHash     String
+  role             String               @default("PLAYER") // "ADMIN" or "PLAYER"
+  createdSports    Sport[]              @relation("SportCreator")
+  createdSessions  SportSession[]       @relation("SessionCreator")
+  joinedSessions   SessionParticipant[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([email])
+}
+
+model Sport {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  createdById Int
+  createdBy   User           @relation("SportCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  sessions    SportSession[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([name])
+}
+
+model SportSession {
+  id                        Int                  @id @default(autoincrement())
+  sportId                   Int
+  sport                     Sport                @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  creatorId                 Int
+  creator                   User                 @relation("SessionCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  sessionDate               String               // Format: YYYY-MM-DD
+  sessionTime               String               // Format: HH:mm (24-hour) or display time
+  startDateTime             DateTime             // Normalized ISO DateTime for filtering & conflict checks
+  venue                     String
+  teamA                     String               // JSON array string of player names, e.g. '["Rahul", "Arjun"]'
+  teamB                     String               // JSON array string of player names, e.g. '["Hemadri", "Anjali"]'
+  additionalPlayersRequired Int                  @default(1)
+  status                    String               @default("UPCOMING") // "UPCOMING", "COMPLETED", "CANCELLED"
+  cancellationReason        String?
+  cancelledAt               DateTime?
+  participants              SessionParticipant[]
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  @@index([sportId])
+  @@index([creatorId])
+  @@index([startDateTime])
+  @@index([status])
+}
+
+model SessionParticipant {
+  id        Int          @id @default(autoincrement())
+  sessionId Int
+  session   SportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      String?      // e.g. "Team A", "Team B", or null
+  joinedAt  DateTime     @default(now())
+
+  @@unique([sessionId, userId], name: "sessionId_userId")
+  @@index([sessionId])
+  @@index([userId])
+}
