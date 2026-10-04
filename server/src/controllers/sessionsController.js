@@ -56,26 +56,8 @@ async function createSession(req, res, next) {
     }
 
     // Optional Feature 2: Conflict check for creator
-    // Check if creator already has a session at this date & time
-    const conflictingSession = await prisma.sportSession.findFirst({
-      where: {
-        creatorId: req.user.id,
-        startDateTime: startDateTime,
-        status: { not: 'CANCELLED' },
-      },
-    });
-
-    const conflictingJoined = await prisma.sessionParticipant.findFirst({
-      where: {
-        userId: req.user.id,
-        session: {
-          startDateTime: startDateTime,
-          status: { not: 'CANCELLED' },
-        },
-      },
-    });
-
-    if (conflictingSession || conflictingJoined) {
+    const conflictResult = await hasSchedulingConflict(req.user.id, startDateTime);
+    if (conflictResult.hasConflict) {
       return res.status(400).json({
         message: 'You already have a session scheduled at this date and time.',
       });

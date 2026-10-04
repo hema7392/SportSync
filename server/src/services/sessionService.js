@@ -17,10 +17,15 @@ async function hasSchedulingConflict(userId, startDateTime, tx = prisma) {
       startDateTime: startDateTime,
       status: { not: 'CANCELLED' },
     },
+    include: { sport: true },
   });
 
   if (conflictingCreated) {
-    return true;
+    return {
+      hasConflict: true,
+      reason: `You already created a ${conflictingCreated.sport.name} session at this date and time (${conflictingCreated.sessionDate} at ${conflictingCreated.sessionTime}).`,
+      session: conflictingCreated,
+    };
   }
 
   const conflictingJoined = await tx.sessionParticipant.findFirst({
@@ -31,9 +36,22 @@ async function hasSchedulingConflict(userId, startDateTime, tx = prisma) {
         status: { not: 'CANCELLED' },
       },
     },
+    include: {
+      session: {
+        include: { sport: true },
+      },
+    },
   });
 
-  return !!conflictingJoined;
+  if (conflictingJoined) {
+    return {
+      hasConflict: true,
+      reason: `You have already joined a ${conflictingJoined.session.sport.name} session at this date and time (${conflictingJoined.session.sessionDate} at ${conflictingJoined.session.sessionTime}).`,
+      session: conflictingJoined.session,
+    };
+  }
+
+  return { hasConflict: false };
 }
 
 /**
@@ -85,8 +103,8 @@ async function validateJoinEligibility(session, userId, tx = prisma) {
     throw error;
   }
 
-  const conflict = await hasSchedulingConflict(userId, session.startDateTime, tx);
-  if (conflict) {
+  const conflictResult = await hasSchedulingConflict(userId, session.startDateTime, tx);
+  if (conflictResult.hasConflict) {
     const error = new Error('You already have a session scheduled at this date and time.');
     error.statusCode = 400;
     throw error;
