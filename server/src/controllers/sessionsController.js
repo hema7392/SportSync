@@ -421,6 +421,8 @@ async function cancelSession(req, res, next) {
     if (session.status === 'CANCELLED') {
       return res.status(400).json({
         message: 'This session is already cancelled.',
+        cancellationReason: session.cancellationReason,
+        cancelledAt: session.cancelledAt,
       });
     }
 
