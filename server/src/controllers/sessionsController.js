@@ -121,6 +121,7 @@ async function getAvailableSessions(req, res, next) {
     const whereClause = {
       status: 'UPCOMING',
       startDateTime: { gt: now },
+      creatorId: { not: req.user.id },
     };
 
     if (sportId) {

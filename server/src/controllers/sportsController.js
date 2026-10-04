@@ -73,16 +73,16 @@ async function createSport(req, res, next) {
     const { name } = req.body;
     const trimmedName = name.trim();
 
-    // Check for duplicate sport (case-insensitive)
-    const existingSport = await prisma.sport.findFirst({
-      where: {
-        name: {
-          equals: trimmedName,
-        },
-      },
+    // Check for duplicate sport case-insensitively (compatible with both SQLite and PostgreSQL)
+    const existingSports = await prisma.sport.findMany({
+      select: { name: true },
     });
 
-    if (existingSport) {
+    const isDuplicate = existingSports.some(
+      (s) => s.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
       return res.status(400).json({
         message: `Sport "${trimmedName}" already exists.`,
       });
@@ -123,6 +123,13 @@ async function deleteSport(req, res, next) {
 
     if (!sport) {
       return res.status(404).json({ message: 'Sport not found.' });
+    }
+
+    // Prevent deletion if the sport has any associated sessions
+    if (sport._count && sport._count.sessions > 0) {
+      return res.status(400).json({
+        message: 'Cannot delete a sport that has associated sessions.',
+      });
     }
 
     await prisma.sport.delete({

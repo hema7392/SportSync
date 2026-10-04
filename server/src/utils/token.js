@@ -1,7 +1,19 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sportsync_dev_secret_jwt_key_wd501_capstone_2026';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+function getJwtSecret() {
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '') {
+      throw new Error('JWT_SECRET environment variable is required in production.');
+    }
+    return process.env.JWT_SECRET;
+  }
+  return process.env.JWT_SECRET || 'sportsync_dev_secret_jwt_key_wd501_capstone_2026';
+}
+
+// Validate on startup if in production
+if (process.env.NODE_ENV === 'production') {
+  getJwtSecret();
+}
 
 function generateToken(user) {
   return jwt.sign(
@@ -11,16 +23,17 @@ function generateToken(user) {
       name: user.name,
       role: user.role,
     },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    getJwtSecret(),
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, getJwtSecret());
 }
 
 module.exports = {
+  getJwtSecret,
   generateToken,
   verifyToken,
 };

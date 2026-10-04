@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../src/app.js';
 import prisma from '../src/prisma.js';
 import bcrypt from 'bcryptjs';
+import { getJwtSecret } from '../src/utils/token.js';
 
 // ----------- Test Helpers -----------
 async function createTestUser(overrides = {}) {
@@ -127,6 +128,23 @@ describe('AUTH', () => {
     });
     expect(loginRes.status).toBe(200);
   });
+
+  it('production JWT_SECRET validation throws if missing', () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalSecret = process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_SECRET;
+      expect(() => getJwtSecret()).toThrow(/JWT_SECRET environment variable is required in production/i);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalSecret !== undefined) {
+        process.env.JWT_SECRET = originalSecret;
+      } else {
+        delete process.env.JWT_SECRET;
+      }
+    }
+  });
 });
 
 // ----------- Test Suite: SPORTS -----------
@@ -180,7 +198,7 @@ describe('SPORTS', () => {
     expect(res.status).toBe(401);
   });
 
-  it('admin cannot create duplicate sport', async () => {
+  it('admin cannot create duplicate sport (exact match)', async () => {
     const sportName = `DupSport_${Date.now()}`;
     await request(app)
       .post('/api/sports')
@@ -192,6 +210,152 @@ describe('SPORTS', () => {
       .send({ name: sportName });
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/already exists/i);
+  });
+
+  it('duplicate sport is rejected case-insensitively', async () => {
+    const sportName = `AuditSport_${Date.now()}`;
+    await request(app)
+      .post('/api/sports')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: sportName });
+    // Try the mixed-case variant — must be rejected
+    const res = await request(app)
+      .post('/api/sports')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: sportName.split('').map((c, i) => (i % 2 === 0 ? c.toUpperCase() : c.toLowerCase())).join('') });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/already exists/i);
+  });
+
+  it('sport with associated sessions cannot be deleted (400)', async () => {
+    // Create a new sport, create a session for it, then try to delete the sport
+    const ts = Date.now();
+    const newSportRes = await request(app)
+      .post('/api/sports')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `DeleteTestSport_${ts}` });
+    const newSportId = newSportRes.body.sport.id;
+
+    // Create a session attached to that sport
+    await prisma.sportSession.create({
+      data: {
+        sportId: newSportId,
+        creatorId: (await prisma.user.findFirst({ where: { role: 'ADMIN' } })).id,
+        sessionDate: '2027-01-15',
+        sessionTime: '10:00',
+        startDateTime: new Date('2027-01-15T10:00:00.000Z'),
+        venue: 'Test Venue',
+        teamA: '[]',
+        teamB: '[]',
+        additionalPlayersRequired: 2,
+        status: 'UPCOMING',
+      },
+    });
+
+    const deleteRes = await request(app)
+      .delete(`/api/sports/${newSportId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleteRes.status).toBe(400);
+    expect(deleteRes.body.message).toMatch(/associated sessions/i);
+  });
+
+  it('sport without sessions can be deleted (200)', async () => {
+    const ts = Date.now();
+    const newSportRes = await request(app)
+      .post('/api/sports')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `NoSessionSport_${ts}` });
+    const newSportId = newSportRes.body.sport.id;
+
+    const deleteRes = await request(app)
+      .delete(`/api/sports/${newSportId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.message).toMatch(/deleted successfully/i);
+  });
+});
+
+// ----------- Test Suite: AVAILABLE SESSIONS DISCOVERY -----------
+describe('AVAILABLE SESSIONS DISCOVERY', () => {
+  let creatorToken;
+  let otherPlayerToken;
+  let sportId;
+  let createdSessionId;
+
+  beforeAll(async () => {
+    const ts = Date.now();
+    const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+
+    const creator = await prisma.user.create({
+      data: {
+        name: 'Discovery Creator',
+        email: `disc_creator_${ts}@test.com`,
+        passwordHash: '$2a$10$abcdefghijklmnopqrstuvuuABCDEFGHIJKLMNOPQRSTUVWXYZ12',
+        role: 'PLAYER',
+      },
+    });
+    const other = await prisma.user.create({
+      data: {
+        name: 'Discovery Other',
+        email: `disc_other_${ts}@test.com`,
+        passwordHash: '$2a$10$abcdefghijklmnopqrstuvuuABCDEFGHIJKLMNOPQRSTUVWXYZ12',
+        role: 'PLAYER',
+      },
+    });
+
+    const loginCreator = await request(app).post('/api/auth/login').send({ email: creator.email, password: 'wrong' });
+    // Use a fresh signup to get valid tokens
+    const creatorSignup = await request(app).post('/api/auth/signup').send({
+      name: 'Disc Creator2',
+      email: `disc_creator2_${ts}@test.com`,
+      password: 'Password123!',
+    });
+    creatorToken = creatorSignup.body.token;
+
+    const otherSignup = await request(app).post('/api/auth/signup').send({
+      name: 'Disc Other2',
+      email: `disc_other2_${ts}@test.com`,
+      password: 'Password123!',
+    });
+    otherPlayerToken = otherSignup.body.token;
+
+    // Get an existing sport
+    const sportsRes = await request(app).get('/api/sports').set('Authorization', `Bearer ${creatorToken}`);
+    sportId = sportsRes.body.sports[0].id;
+
+    // Creator creates a session
+    const sessionRes = await request(app)
+      .post('/api/sessions')
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .send({
+        sportId,
+        sessionDate: '2027-03-15',
+        sessionTime: '14:00',
+        venue: 'Discovery Arena',
+        additionalPlayersRequired: 3,
+      });
+    createdSessionId = sessionRes.body.session.id;
+  });
+
+  it('creator cannot see their own session in available sessions', async () => {
+    const res = await request(app).get('/api/sessions').set('Authorization', `Bearer ${creatorToken}`);
+    expect(res.status).toBe(200);
+    const ids = res.body.sessions.map((s) => s.id);
+    expect(ids).not.toContain(createdSessionId);
+  });
+
+  it('other players CAN see the session in available sessions', async () => {
+    const res = await request(app).get('/api/sessions').set('Authorization', `Bearer ${otherPlayerToken}`);
+    expect(res.status).toBe(200);
+    const ids = res.body.sessions.map((s) => s.id);
+    expect(ids).toContain(createdSessionId);
+  });
+
+  it('creator can still see their session in My Created Sessions', async () => {
+    const res = await request(app).get('/api/sessions/created').set('Authorization', `Bearer ${creatorToken}`);
+    expect(res.status).toBe(200);
+    const ids = res.body.sessions.map((s) => s.id);
+    expect(ids).toContain(createdSessionId);
   });
 });
 
