@@ -1,4 +1,8 @@
 const prisma = require('../prisma');
+const {
+  hasSchedulingConflict,
+  validateJoinEligibility,
+} = require('../services/sessionService');
 
 // Helper to auto-update past upcoming sessions to COMPLETED
 async function refreshSessionStatuses() {
@@ -341,76 +345,10 @@ async function joinSession(req, res, next) {
         },
       });
 
-      if (!session) {
-        const error = new Error('Session not found.');
-        error.statusCode = 404;
-        throw error;
-      }
+      // 2. Validate all join eligibility rules (exists, not cancelled, not past, not duplicate, not full, no conflict)
+      await validateJoinEligibility(session, userId, tx);
 
-      // 2. Check if cancelled
-      if (session.status === 'CANCELLED') {
-        const error = new Error('Cannot join a cancelled session.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 3. Check past date/time
-      const now = new Date();
-      if (session.startDateTime <= now) {
-        const error = new Error('This session has already started or ended and can no longer be joined.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 4. Check if user is the creator
-      if (session.creatorId === userId) {
-        const error = new Error('You cannot join a session you created as a participant slot.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 5. Check if user already joined
-      const alreadyJoined = session.participants.some((p) => p.userId === userId);
-      if (alreadyJoined) {
-        const error = new Error('You have already joined this session.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 6. Check available slots
-      if (session.participants.length >= session.additionalPlayersRequired) {
-        const error = new Error('This session is full. No available slots remaining.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 7. Check scheduling conflicts (Optional Feature 2)
-      // Player cannot have another active session (created or joined) at the same date and time
-      const conflictingCreated = await tx.sportSession.findFirst({
-        where: {
-          creatorId: userId,
-          startDateTime: session.startDateTime,
-          status: { not: 'CANCELLED' },
-        },
-      });
-
-      const conflictingJoined = await tx.sessionParticipant.findFirst({
-        where: {
-          userId: userId,
-          session: {
-            startDateTime: session.startDateTime,
-            status: { not: 'CANCELLED' },
-          },
-        },
-      });
-
-      if (conflictingCreated || conflictingJoined) {
-        const error = new Error('You already have a session scheduled at this date and time.');
-        error.statusCode = 400;
-        throw error;
-      }
-
-      // 8. Add participant
+      // 3. Add participant
       const participant = await tx.sessionParticipant.create({
         data: {
           sessionId,
@@ -422,7 +360,7 @@ async function joinSession(req, res, next) {
         },
       });
 
-      // 9. Fetch updated session details
+      // 4. Fetch updated session details
       const updatedSession = await tx.sportSession.findUnique({
         where: { id: sessionId },
         include: {
