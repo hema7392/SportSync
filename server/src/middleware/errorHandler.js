@@ -1,5 +1,8 @@
 function errorHandler(err, req, res, next) {
-  console.error('Unhandled Application Error:', err);
+  const statusCode = err.statusCode || err.status || 500;
+  if (statusCode >= 500) {
+    console.error('Server Internal Error:', err);
+  }
 
   // Prisma unique constraint violation (code P2002)
   if (err.code === 'P2002') {
@@ -16,7 +19,6 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  const statusCode = err.statusCode || err.status || 500;
   const message = err.message || 'An unexpected server error occurred.';
 
   return res.status(statusCode).json({
