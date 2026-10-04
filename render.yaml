@@ -6,7 +6,7 @@ services:
     plan: free
     region: oregon
     buildCommand: npm run render-build
-    startCommand: npm start
+    startCommand: npm run seed && npm start
     envVars:
       - key: NODE_ENV
         value: production

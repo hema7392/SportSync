@@ -12,26 +12,70 @@ async function main() {
   console.log('--- Starting SportSync Database Seeding ---');
 
   // 1. Seed Administrator
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@sportsync.local';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@sportsync2026';
-  const adminName = process.env.ADMIN_NAME || 'System Administrator';
+  let rawAdminEmail = process.env.ADMIN_EMAIL || 'admin@sportsync.local';
+  rawAdminEmail = rawAdminEmail.trim();
+  if (
+    (rawAdminEmail.startsWith('"') && rawAdminEmail.endsWith('"')) ||
+    (rawAdminEmail.startsWith("'") && rawAdminEmail.endsWith("'"))
+  ) {
+    rawAdminEmail = rawAdminEmail.slice(1, -1).trim();
+  }
+  const adminEmail = rawAdminEmail.toLowerCase();
+
+  let rawAdminPassword = process.env.ADMIN_PASSWORD || 'Admin@sportsync2026';
+  rawAdminPassword = rawAdminPassword.trim();
+  if (
+    (rawAdminPassword.startsWith('"') && rawAdminPassword.endsWith('"')) ||
+    (rawAdminPassword.startsWith("'") && rawAdminPassword.endsWith("'"))
+  ) {
+    rawAdminPassword = rawAdminPassword.slice(1, -1).trim();
+  }
+  const adminPassword = rawAdminPassword;
+
+  let rawAdminName = process.env.ADMIN_NAME || 'System Administrator';
+  rawAdminName = rawAdminName.trim();
+  if (
+    (rawAdminName.startsWith('"') && rawAdminName.endsWith('"')) ||
+    (rawAdminName.startsWith("'") && rawAdminName.endsWith("'"))
+  ) {
+    rawAdminName = rawAdminName.slice(1, -1).trim();
+  }
+  const adminName = rawAdminName;
 
   const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      name: adminName,
-      passwordHash: adminPasswordHash,
-      role: 'ADMIN',
-    },
-    create: {
-      name: adminName,
-      email: adminEmail,
-      passwordHash: adminPasswordHash,
-      role: 'ADMIN',
+
+  const existingAdmin = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: adminEmail },
+        { role: 'ADMIN' },
+      ],
     },
   });
-  console.log(`✓ Admin user ready: ${admin.email} (Role: ${admin.role})`);
+
+  let admin;
+  if (existingAdmin) {
+    admin = await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        name: adminName,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'ADMIN',
+      },
+    });
+    console.log(`✓ Admin user updated: ${admin.email} (ID: ${admin.id}, Role: ${admin.role})`);
+  } else {
+    admin = await prisma.user.create({
+      data: {
+        name: adminName,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'ADMIN',
+      },
+    });
+    console.log(`✓ Admin user created: ${admin.email} (ID: ${admin.id}, Role: ${admin.role})`);
+  }
 
   // 2. Seed Demo Players
   const defaultPlayerPasswordHash = await bcrypt.hash('Player@123', 10);
@@ -112,100 +156,108 @@ async function main() {
   const pastDate2Str = pastDate2.toISOString().split('T')[0];
   const pastDateTime2 = new Date(`${pastDate2Str}T16:00:00.000Z`);
 
-  // Create upcoming session 1
-  const session1 = await prisma.sportSession.create({
-    data: {
-      sportId: football.id,
-      creatorId: players[0].id, // Rahul
-      sessionDate: tomorrowStr,
-      sessionTime: '18:00',
-      startDateTime: futureDateTime,
-      venue: 'Main College Stadium - Field A',
-      teamA: JSON.stringify(['Rahul', 'Hemadri']),
-      teamB: JSON.stringify(['Anjali']),
-      additionalPlayersRequired: 3,
-      status: 'UPCOMING',
-      participants: {
-        create: [
-          { userId: players[1].id, team: 'Team B' }, // Anjali joined
-        ],
+  // 4. Seed Sample Sessions (Idempotent: check if each sample session already exists before creating)
+  async function seedSessionIfMissing(sessionData) {
+    const existing = await prisma.sportSession.findFirst({
+      where: {
+        venue: sessionData.venue,
+        creatorId: sessionData.creatorId,
       },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return prisma.sportSession.create({
+      data: sessionData,
+    });
+  }
+
+  // Create upcoming session 1
+  await seedSessionIfMissing({
+    sportId: football.id,
+    creatorId: players[0].id, // Rahul
+    sessionDate: tomorrowStr,
+    sessionTime: '18:00',
+    startDateTime: futureDateTime,
+    venue: 'Main College Stadium - Field A',
+    teamA: JSON.stringify(['Rahul', 'Hemadri']),
+    teamB: JSON.stringify(['Anjali']),
+    additionalPlayersRequired: 3,
+    status: 'UPCOMING',
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team B' }, // Anjali joined
+      ],
     },
   });
 
   // Create upcoming session 2
-  await prisma.sportSession.create({
-    data: {
-      sportId: cricket.id,
-      creatorId: admin.id, // Admin can create sessions
-      sessionDate: nextWeekStr,
-      sessionTime: '09:00',
-      startDateTime: nextWeekDateTime,
-      venue: 'Green Valley Sports Complex',
-      teamA: JSON.stringify(['Admin Player', 'Sam']),
-      teamB: JSON.stringify(['Vikram']),
-      additionalPlayersRequired: 4,
-      status: 'UPCOMING',
-    },
+  await seedSessionIfMissing({
+    sportId: cricket.id,
+    creatorId: admin.id, // Admin can create sessions
+    sessionDate: nextWeekStr,
+    sessionTime: '09:00',
+    startDateTime: nextWeekDateTime,
+    venue: 'Green Valley Sports Complex',
+    teamA: JSON.stringify(['Admin Player', 'Sam']),
+    teamB: JSON.stringify(['Vikram']),
+    additionalPlayersRequired: 4,
+    status: 'UPCOMING',
   });
 
   // Create past completed sessions for reports
-  await prisma.sportSession.create({
-    data: {
-      sportId: football.id,
-      creatorId: players[0].id,
-      sessionDate: pastDate1Str,
-      sessionTime: '17:00',
-      startDateTime: pastDateTime1,
-      venue: 'Downtown Turf Arena',
-      teamA: JSON.stringify(['Rahul', 'Sunil']),
-      teamB: JSON.stringify(['Karan', 'Dev']),
-      additionalPlayersRequired: 2,
-      status: 'COMPLETED',
-      participants: {
-        create: [
-          { userId: players[1].id, team: 'Team A' },
-          { userId: players[2].id, team: 'Team B' },
-        ],
-      },
+  await seedSessionIfMissing({
+    sportId: football.id,
+    creatorId: players[0].id,
+    sessionDate: pastDate1Str,
+    sessionTime: '17:00',
+    startDateTime: pastDateTime1,
+    venue: 'Downtown Turf Arena',
+    teamA: JSON.stringify(['Rahul', 'Sunil']),
+    teamB: JSON.stringify(['Karan', 'Dev']),
+    additionalPlayersRequired: 2,
+    status: 'COMPLETED',
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team A' },
+        { userId: players[2].id, team: 'Team B' },
+      ],
     },
   });
 
-  await prisma.sportSession.create({
-    data: {
-      sportId: cricket.id,
-      creatorId: players[1].id,
-      sessionDate: pastDate2Str,
-      sessionTime: '16:00',
-      startDateTime: pastDateTime2,
-      venue: 'City Cricket Ground',
-      teamA: JSON.stringify(['Anjali', 'Priya']),
-      teamB: JSON.stringify(['Sneha', 'Ritu']),
-      additionalPlayersRequired: 2,
-      status: 'COMPLETED',
-    },
+  await seedSessionIfMissing({
+    sportId: cricket.id,
+    creatorId: players[1].id,
+    sessionDate: pastDate2Str,
+    sessionTime: '16:00',
+    startDateTime: pastDateTime2,
+    venue: 'City Cricket Ground',
+    teamA: JSON.stringify(['Anjali', 'Priya']),
+    teamB: JSON.stringify(['Sneha', 'Ritu']),
+    additionalPlayersRequired: 2,
+    status: 'COMPLETED',
   });
 
   // Create a cancelled session to demonstrate cancellation reason
-  await prisma.sportSession.create({
-    data: {
-      sportId: badminton.id,
-      creatorId: players[0].id,
-      sessionDate: tomorrowStr,
-      sessionTime: '20:00',
-      startDateTime: new Date(`${tomorrowStr}T20:00:00.000Z`),
-      venue: 'Indoor Badminton Court 2',
-      teamA: JSON.stringify(['Rahul']),
-      teamB: JSON.stringify(['Rohan']),
-      additionalPlayersRequired: 2,
-      status: 'CANCELLED',
-      cancellationReason: 'Ground is unavailable due to maintenance work.',
-      cancelledAt: new Date(),
-      participants: {
-        create: [
-          { userId: players[1].id, team: 'Team A' },
-        ],
-      },
+  await seedSessionIfMissing({
+    sportId: badminton.id,
+    creatorId: players[0].id,
+    sessionDate: tomorrowStr,
+    sessionTime: '20:00',
+    startDateTime: new Date(`${tomorrowStr}T20:00:00.000Z`),
+    venue: 'Indoor Badminton Court 2',
+    teamA: JSON.stringify(['Rahul']),
+    teamB: JSON.stringify(['Rohan']),
+    additionalPlayersRequired: 2,
+    status: 'CANCELLED',
+    cancellationReason: 'Ground is unavailable due to maintenance work.',
+    cancelledAt: new Date(),
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team A' },
+      ],
     },
   });
 
