@@ -389,9 +389,11 @@ describe('SESSIONS', () => {
     sportId = sport.id;
   });
 
-  // Helper: create a future session
+  // Helper: create a future session with unique date to prevent conflicts
+  let futureDayOffset = 200;
   async function createFutureSession(token, overrides = {}) {
-    const futureDate = new Date(Date.now() + (60 + Math.random() * 3000) * 24 * 60 * 60 * 1000);
+    futureDayOffset += 1;
+    const futureDate = new Date(Date.now() + futureDayOffset * 24 * 60 * 60 * 1000);
     const dateStr = futureDate.toISOString().split('T')[0];
     return request(app)
       .post('/api/sessions')
