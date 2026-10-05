@@ -1,25 +1,18 @@
+// Auth Routes for CampusFix
 const express = require('express');
-const {
-  signup,
-  login,
-  logout,
-  getMe,
-  changePassword,
-} = require('../controllers/authController');
-const {
-  signupValidator,
-  loginValidator,
-  changePasswordValidator,
-} = require('../validators/authValidators');
-const validate = require('../middleware/validate');
-const { requireAuth } = require('../middleware/authMiddleware');
-
 const router = express.Router();
+const authController = require('../controllers/authController');
+const { authenticate } = require('../middleware/auth');
+const {
+  validateSignup,
+  validateLogin,
+  validateChangePassword,
+} = require('../validators/authValidators');
 
-router.post('/signup', signupValidator, validate, signup);
-router.post('/login', loginValidator, validate, login);
-router.post('/logout', requireAuth, logout);
-router.get('/me', requireAuth, getMe);
-router.post('/change-password', requireAuth, changePasswordValidator, validate, changePassword);
+router.post('/signup', validateSignup, authController.signup);
+router.post('/login', validateLogin, authController.login);
+router.post('/logout', authController.logout);
+router.get('/me', authenticate, authController.getCurrentUser);
+router.post('/change-password', authenticate, validateChangePassword, authController.changePassword);
 
 module.exports = router;

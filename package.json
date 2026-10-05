@@ -1,7 +1,7 @@
 {
-  "name": "sports-scheduler-monorepo",
+  "name": "campusfix-monorepo",
   "version": "1.0.0",
-  "description": "SportSync - WD501 Advanced Backend Capstone Project",
+  "description": "CampusFix - Centralized Campus Maintenance & Complaint Management Platform (WD501 Capstone)",
   "private": true,
   "scripts": {
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
@@ -22,13 +22,15 @@
     "concurrently": "^9.1.2"
   },
   "keywords": [
-    "sports-scheduler",
+    "campusfix",
+    "maintenance",
+    "complaint-management",
     "wd501",
     "capstone",
     "express",
     "react",
     "prisma"
   ],
-  "author": "SportSync Team",
+  "author": "CampusFix Team",
   "license": "ISC"
 }

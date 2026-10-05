@@ -1,4 +1,4 @@
-// Prisma Schema for SportSync (Sports Scheduler)
+// Prisma Schema for CampusFix
 // WD501 Advanced Backend Capstone Project
 
 generator client {
@@ -11,68 +11,162 @@ datasource db {
 }
 
 model User {
-  id               Int                  @id @default(autoincrement())
-  name             String
-  email            String               @unique
-  passwordHash     String
-  role             String               @default("PLAYER") // "ADMIN" or "PLAYER"
-  createdSports    Sport[]              @relation("SportCreator")
-  createdSessions  SportSession[]       @relation("SessionCreator")
-  joinedSessions   SessionParticipant[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id                  Int               @id @default(autoincrement())
+  name                String
+  email               String            @unique
+  passwordHash        String
+  role                String            @default("REPORTER") // "ADMIN", "REPORTER", "TECHNICIAN"
+  department          String?           // e.g. "Computer Science", "Electrical Maintenance", "Student Council"
+  phone               String?
+  isActive            Boolean           @default(true)
+  reportedIssues      Issue[]           @relation("ReportedIssues")
+  assignedIssues      IssueAssignment[] @relation("TechnicianAssignments")
+  createdAssignments IssueAssignment[] @relation("AdminAssignments")
+  comments            IssueComment[]
+  histories           IssueHistory[]
+  notifications       Notification[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([email])
+  @@index([role])
+  @@index([isActive])
 }
 
-model Sport {
-  id          Int            @id @default(autoincrement())
-  name        String         @unique
-  createdById Int
-  createdBy   User           @relation("SportCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  sessions    SportSession[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  icon        String?  // Lucide icon name, e.g. "Zap", "Droplets", "Wrench", "Wifi"
+  isActive    Boolean  @default(true)
+  issues      Issue[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([name])
+  @@index([isActive])
 }
 
-model SportSession {
-  id                        Int                  @id @default(autoincrement())
-  sportId                   Int
-  sport                     Sport                @relation(fields: [sportId], references: [id], onDelete: Cascade)
-  creatorId                 Int
-  creator                   User                 @relation("SessionCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  sessionDate               String               // Format: YYYY-MM-DD
-  sessionTime               String               // Format: HH:mm (24-hour) or display time
-  startDateTime             DateTime             // Normalized ISO DateTime for filtering & conflict checks
-  venue                     String
-  teamA                     String               // JSON array string of player names, e.g. '["Rahul", "Arjun"]'
-  teamB                     String               // JSON array string of player names, e.g. '["Hemadri", "Anjali"]'
-  additionalPlayersRequired Int                  @default(1)
-  status                    String               @default("UPCOMING") // "UPCOMING", "COMPLETED", "CANCELLED"
-  cancellationReason        String?
-  cancelledAt               DateTime?
-  participants              SessionParticipant[]
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
+model Building {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  code        String?    // e.g. "ACAD-A", "ENGG", "LIB", "HST-1"
+  description String?
+  isActive    Boolean    @default(true)
+  locations   Location[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  @@index([sportId])
-  @@index([creatorId])
-  @@index([startDateTime])
+  @@index([name])
+  @@index([isActive])
+}
+
+model Location {
+  id          Int      @id @default(autoincrement())
+  buildingId  Int
+  building    Building @relation(fields: [buildingId], references: [id], onDelete: Restrict)
+  name        String   // e.g. "Room 101", "Computer Lab 3", "2nd Floor Restroom"
+  floor       String?  // e.g. "Ground Floor", "1st Floor", "2nd Floor"
+  isActive    Boolean  @default(true)
+  issues      Issue[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([buildingId])
+  @@index([isActive])
+}
+
+model Issue {
+  id             Int               @id @default(autoincrement())
+  title          String
+  description    String
+  reporterId     Int
+  reporter       User              @relation("ReportedIssues", fields: [reporterId], references: [id], onDelete: Restrict)
+  categoryId     Int
+  category       Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  locationId     Int
+  location       Location          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  specificArea   String?           // e.g. "Near window desk 4", "Ceiling fixture #2"
+  priority       String            @default("MEDIUM") // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  status         String            @default("REPORTED") // "REPORTED", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"
+  imageUrl       String?
+  resolutionNote String?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  reopenedAt     DateTime?
+  assignments    IssueAssignment[]
+  comments       IssueComment[]
+  history        IssueHistory[]
+  notifications  Notification[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([reporterId])
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model IssueAssignment {
+  id           Int       @id @default(autoincrement())
+  issueId      Int
+  issue        Issue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  technicianId Int
+  technician   User      @relation("TechnicianAssignments", fields: [technicianId], references: [id], onDelete: Restrict)
+  assignedById Int
+  assignedBy   User      @relation("AdminAssignments", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedAt   DateTime  @default(now())
+  completedAt  DateTime?
+  status       String    @default("ACTIVE") // "ACTIVE", "COMPLETED", "REASSIGNED"
+
+  @@index([issueId])
+  @@index([technicianId])
   @@index([status])
 }
 
-model SessionParticipant {
-  id        Int          @id @default(autoincrement())
-  sessionId Int
-  session   SportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId    Int
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team      String?      // e.g. "Team A", "Team B", or null
-  joinedAt  DateTime     @default(now())
+model IssueComment {
+  id         Int      @id @default(autoincrement())
+  issueId    Int
+  issue      Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  message    String
+  isInternal Boolean  @default(false) // For technician/admin internal work notes
+  createdAt  DateTime @default(now())
 
-  @@unique([sessionId, userId], name: "sessionId_userId")
-  @@index([sessionId])
+  @@index([issueId])
   @@index([userId])
+}
+
+model IssueHistory {
+  id          Int      @id @default(autoincrement())
+  issueId     Int
+  issue       Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  action      String   // "CREATED", "ASSIGNED", "STATUS_CHANGED", "COMMENT_ADDED", "RESOLVED", "REOPENED", "CLOSED", "CANCELLED", "PRIORITY_CHANGED"
+  fromStatus  String?
+  toStatus    String?
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([issueId])
+  @@index([userId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueId   Int?
+  issue     Issue?   @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
 }

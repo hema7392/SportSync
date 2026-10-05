@@ -1,110 +1,140 @@
+// Authentication Controller for CampusFix
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const prisma = require('../prisma');
-const { generateToken } = require('../utils/token');
+const { getJwtSecret } = require('../middleware/auth');
 
-// POST /api/auth/signup
-async function signup(req, res, next) {
+/**
+ * Register a new REPORTER account
+ */
+const signup = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, department, phone } = req.body;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    // Check if user already exists
+    const existing = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
     });
 
-    if (existingUser) {
-      return res.status(400).json({
-        message: 'An account with this email address already exists.',
-      });
+    if (existing) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
 
+    // Create user (Public signup is always REPORTER)
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: email.toLowerCase(),
         passwordHash,
-        role: 'PLAYER',
+        role: 'REPORTER',
+        department: department || null,
+        phone: phone || null,
+        isActive: true,
       },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        department: true,
+        phone: true,
+        isActive: true,
         createdAt: true,
       },
     });
 
-    const token = generateToken(user);
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      getJwtSecret(),
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     return res.status(201).json({
-      message: 'Account created successfully.',
+      message: 'Registration successful',
       token,
       user,
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-// POST /api/auth/login
-async function login(req, res, next) {
+/**
+ * Log in with email and password
+ */
+const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
 
     if (!user) {
-      return res.status(401).json({
-        message: 'Invalid email or password.',
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        message: 'Your account has been deactivated. Please contact an administrator.',
       });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({
-        message: 'Invalid email or password.',
-      });
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
+
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      getJwtSecret(),
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     const safeUser = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      department: user.department,
+      phone: user.phone,
+      isActive: user.isActive,
       createdAt: user.createdAt,
     };
 
-    const token = generateToken(safeUser);
-
     return res.status(200).json({
-      message: 'Signed in successfully.',
+      message: 'Login successful',
       token,
       user: safeUser,
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-// POST /api/auth/logout
-async function logout(req, res) {
-  return res.status(200).json({
-    message: 'Logged out successfully.',
-  });
-}
+/**
+ * Logout
+ */
+const logout = async (req, res) => {
+  return res.status(200).json({ message: 'Logged out successfully' });
+};
 
-// GET /api/auth/me
-async function getMe(req, res) {
-  return res.status(200).json({
-    user: req.user,
-  });
-}
+/**
+ * Get current authenticated user
+ */
+const getCurrentUser = async (req, res) => {
+  return res.status(200).json({ user: req.user });
+};
 
-// POST /api/auth/change-password
-async function changePassword(req, res, next) {
+/**
+ * Change Password
+ */
+const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
@@ -114,42 +144,32 @@ async function changePassword(req, res, next) {
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    const isCurrentMatch = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!isCurrentMatch) {
-      return res.status(400).json({
-        message: 'Incorrect current password.',
-      });
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect current password.' });
     }
 
-    const isSameAsCurrent = await bcrypt.compare(newPassword, user.passwordHash);
-    if (isSameAsCurrent) {
-      return res.status(400).json({
-        message: 'New password cannot be the same as your current password.',
-      });
-    }
-
-    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    const salt = await bcrypt.genSalt(10);
+    const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
     await prisma.user.update({
       where: { id: userId },
       data: { passwordHash: newPasswordHash },
     });
 
-    return res.status(200).json({
-      message: 'Password updated successfully.',
-    });
-  } catch (error) {
-    next(error);
+    return res.status(200).json({ message: 'Password changed successfully.' });
+  } catch (err) {
+    next(err);
   }
-}
+};
 
 module.exports = {
   signup,
   login,
   logout,
-  getMe,
+  getCurrentUser,
   changePassword,
 };

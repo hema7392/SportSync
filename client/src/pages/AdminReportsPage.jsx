@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { reportsApi } from '../api/reports';
-import Alert from '../components/Alert';
-import Badge from '../components/Badge';
+import { StatCard } from '../components/StatCard';
 import {
   BarChart,
   Bar,
@@ -13,366 +12,370 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
   Legend,
 } from 'recharts';
 import {
   BarChart3,
   Calendar,
-  Filter,
-  Trophy,
-  Activity,
+  Clock,
   CheckCircle2,
-  PieChart as PieIcon,
-  RefreshCw,
+  AlertTriangle,
+  HardHat,
+  RotateCcw,
+  TrendingUp,
 } from 'lucide-react';
 
-const CHART_COLORS = [
-  '#10b981', // emerald
-  '#0ea5e9', // sky
-  '#a855f7', // purple
-  '#f59e0b', // amber
-  '#ec4899', // pink
-  '#3b82f6', // blue
-  '#14b8a6', // teal
-  '#f43f5e', // rose
-];
+const STATUS_COLORS = {
+  Reported: '#38bdf8',
+  Assigned: '#a855f7',
+  'In Progress': '#f59e0b',
+  Resolved: '#10b981',
+  Closed: '#64748b',
+  Reopened: '#f43f5e',
+  Cancelled: '#475569',
+};
 
-export default function AdminReportsPage() {
+const PIE_COLORS = ['#38bdf8', '#a855f7', '#f59e0b', '#10b981', '#64748b', '#f43f5e'];
+
+export function AdminReportsPage() {
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState(null);
+  const [categoryData, setCategoryData] = useState([]);
+  const [locationData, setLocationData] = useState([]);
+  const [technicianData, setTechnicianData] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+
+  // Date range filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  // Set default initial range: beginning of current month to today
-  useEffect(() => {
-    const now = new Date();
-    const endStr = now.toISOString().split('T')[0];
-    
-    // 30 days ago
-    const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const startStr = past.toISOString().split('T')[0];
-
-    setStartDate(startStr);
-    setEndDate(endStr);
-
-    fetchReport(startStr, endStr);
-  }, []);
-
-  const fetchReport = async (start, end) => {
+  const fetchReports = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setError('');
-      const data = await reportsApi.getSessionsReport(start, end);
-      setReport(data);
+      const params = {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      };
+
+      const [ovRes, catRes, locRes, techRes, trendRes] = await Promise.all([
+        reportsApi.getOverview(params),
+        reportsApi.getCategories(params),
+        reportsApi.getLocations(params),
+        reportsApi.getTechnicians(),
+        reportsApi.getTrends(),
+      ]);
+
+      setOverview(ovRes);
+      setCategoryData(catRes.categories || []);
+      setLocationData(locRes.buildings || []);
+      setTechnicianData(techRes.technicians || []);
+      setTrendData(trendRes.trends || []);
     } catch (err) {
-      setError(err.message || 'Failed to generate report.');
+      console.error('Failed to load reports:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGenerateReport = (e) => {
-    e.preventDefault();
-    if (startDate && endDate && startDate > endDate) {
-      setError('Start date cannot be after end date.');
-      return;
-    }
-    fetchReport(startDate, endDate);
+  useEffect(() => {
+    fetchReports();
+  }, [startDate, endDate]);
+
+  const handleResetDates = () => {
+    setStartDate('');
+    setEndDate('');
   };
 
-  const popularityData = report?.sportPopularity || [];
-  const totalPlayed = report?.totalSessionsPlayed || 0;
-  const sessionsList = report?.sessions || [];
+  // Prepare Pie Chart data from overview
+  const statusPieData = overview
+    ? [
+        { name: 'Reported', value: overview.reportedIssues || 0 },
+        { name: 'Assigned', value: overview.assignedIssues || 0 },
+        { name: 'In Progress', value: overview.inProgressIssues || 0 },
+        { name: 'Resolved', value: overview.resolvedIssues || 0 },
+        { name: 'Reopened', value: overview.reopenedIssues || 0 },
+      ].filter((item) => item.value > 0)
+    : [];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+    <div className="space-y-8 animate-in fade-in duration-200">
+      {/* Page Header & Filter Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold mb-2">
-            <BarChart3 className="w-3.5 h-3.5" />
-            Executive Analytics
-          </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Admin Reports
+          <h1 className="text-2xl font-bold tracking-tight text-white font-display">
+            Facility Analytics & Maintenance Intelligence
           </h1>
-          <p className="text-slate-400 text-sm">
-            Analyze match volume and relative sport popularity for played sessions during a configurable timeframe.
-          </p>
-        </div>
-      </div>
-
-      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
-
-      {/* Date Range Configurator Form */}
-      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl">
-        <form onSubmit={handleGenerateReport} className="flex flex-col sm:flex-row items-end gap-4">
-          <div className="w-full sm:w-auto flex-1">
-            <label htmlFor="startDate" className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Start Date
-            </label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                id="startDate"
-                type="date"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="w-full sm:w-auto flex-1">
-            <label htmlFor="endDate" className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              End Date
-            </label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                id="endDate"
-                type="date"
-                required
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 transition-colors"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all shadow-lg shadow-purple-600/25 disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
-          >
-            {loading ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Filter className="w-4 h-4" />
-            )}
-            Generate Report
-          </button>
-        </form>
-      </div>
-
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Total Sessions Played
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-4xl font-extrabold text-white tracking-tight">{totalPlayed}</div>
-          <p className="text-xs text-slate-400">
-            Past completed matches (cancelled sessions excluded)
+          <p className="text-xs text-slate-400 mt-1">
+            Real-time aggregated performance metrics, resolution rates, and technician workloads
           </p>
         </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Most Popular Sport
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-              <Trophy className="w-5 h-5" />
-            </div>
+        {/* Date Filter Bar */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent text-slate-300 text-xs focus:outline-none"
+            />
+            <span className="text-slate-600">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent text-slate-300 text-xs focus:outline-none"
+            />
           </div>
-          <div className="text-2xl font-extrabold text-purple-300 truncate">
-            {popularityData[0]?.sportName || 'N/A'}
-          </div>
-          <p className="text-xs text-slate-400">
-            {popularityData[0]
-              ? `${popularityData[0].count} matches played (${popularityData[0].percentage}%)`
-              : 'No matches in range'}
-          </p>
-        </div>
 
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Distinct Sports Played
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400">
-              <Activity className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-4xl font-extrabold text-white tracking-tight">
-            {popularityData.length}
-          </div>
-          <p className="text-xs text-slate-400">Different sporting categories active</p>
+          {(startDate || endDate) && (
+            <button
+              onClick={handleResetDates}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold flex items-center gap-1 transition"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Sport Popularity Breakdown & Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Popularity Bar Chart */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-emerald-400" />
-              Sport Popularity (Match Count)
-            </h2>
-          </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          title="Total Reports"
+          value={overview?.totalIssues ?? 0}
+          icon={BarChart3}
+          color="sky"
+        />
+        <StatCard
+          title="Open Complaints"
+          value={overview?.openIssues ?? 0}
+          icon={Clock}
+          color="amber"
+        />
+        <StatCard
+          title="Resolved"
+          value={overview?.resolvedIssues ?? 0}
+          icon={CheckCircle2}
+          color="emerald"
+        />
+        <StatCard
+          title="Resolution Rate"
+          value={`${overview?.resolutionRate ?? 0}%`}
+          icon={TrendingUp}
+          color="purple"
+        />
+        <StatCard
+          title="Avg Resolution Time"
+          value={overview?.avgResolutionHours ? `${overview.avgResolutionHours}h` : 'N/A'}
+          icon={Clock}
+          color="teal"
+          subtitle={overview?.avgResolutionDays ? `~${overview.avgResolutionDays} days` : ''}
+        />
+      </div>
 
-          {popularityData.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-slate-500 text-sm italic">
-              No sessions played in this date range.
-            </div>
-          ) : (
+      {loading ? (
+        <div className="p-20 flex flex-col items-center justify-center gap-3">
+          <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400">Aggregating database reports...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* CHART 1: Issues by Category (Bar Chart) */}
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+              Issues by Category Breakdown
+            </h3>
+            <p className="text-xs text-slate-400">
+              Distribution of complaints across campus service classifications
+            </p>
+
             <div className="h-72 w-full pt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={popularityData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                <BarChart data={categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                  <XAxis dataKey="sportName" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                  <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 12 }} allowDecimals={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#64748b"
+                    fontSize={10}
+                    interval={0}
+                    angle={-25}
+                    textAnchor="end"
+                  />
+                  <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderColor: '#334155',
-                      borderRadius: '12px',
-                      color: '#fff',
+                      borderRadius: '0.75rem',
+                      fontSize: '12px',
                     }}
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   />
-                  <Bar dataKey="count" fill="#10b981" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="total" name="Total Issues" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
-        </div>
-
-        {/* Popularity Share Donut Chart */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              <PieIcon className="w-5 h-5 text-purple-400" />
-              Relative Sport Share (%)
-            </h2>
           </div>
 
-          {popularityData.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-slate-500 text-sm italic">
-              No sessions played in this date range.
+          {/* CHART 2: Issues by Status (Pie / Donut Chart) */}
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-400" />
+              Current Status Distribution
+            </h3>
+            <p className="text-xs text-slate-400">
+              Active lifecycle states of all reported campus tickets
+            </p>
+
+            <div className="h-72 w-full flex items-center justify-center">
+              {statusPieData.length === 0 ? (
+                <p className="text-xs text-slate-500">No issue records found for this period</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusPieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={95}
+                      paddingAngle={4}
+                    >
+                      {statusPieData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={PIE_COLORS[index % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#334155',
+                        borderRadius: '0.75rem',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                      iconType="circle"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
-          ) : (
-            <div className="h-72 w-full">
+          </div>
+
+          {/* CHART 3: Issues over time / Monthly Trends (Line Chart) */}
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-400" />
+              Resolution & Reporting Velocity
+            </h3>
+            <p className="text-xs text-slate-400">
+              Comparison of new complaints logged vs. completed repairs over time
+            </p>
+
+            <div className="h-72 w-full pt-4">
+              {trendData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                  Not enough historical data points
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="period" stroke="#64748b" fontSize={11} />
+                    <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: '#334155',
+                        borderRadius: '0.75rem',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    <Line
+                      type="monotone"
+                      dataKey="reported"
+                      name="Reported"
+                      stroke="#38bdf8"
+                      strokeWidth={2.5}
+                      dot={{ r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="resolved"
+                      name="Resolved"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* CHART 4: Technician Workload (Bar Chart) */}
+          <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-sm">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              Technician Assignment & Workload
+            </h3>
+            <p className="text-xs text-slate-400">
+              Active vs completed assignments per maintenance specialist
+            </p>
+
+            <div className="h-72 w-full pt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={popularityData}
-                    dataKey="count"
-                    nameKey="sportName"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={4}
-                  >
-                    {popularityData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
+                <BarChart data={technicianData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#64748b"
+                    fontSize={10}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: '#0f172a',
                       borderColor: '#334155',
-                      borderRadius: '12px',
-                      color: '#fff',
+                      borderRadius: '0.75rem',
+                      fontSize: '12px',
                     }}
                   />
-                  <Legend
-                    verticalAlign="bottom"
-                    formatter={(value) => <span className="text-xs text-slate-300">{value}</span>}
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }} />
+                  <Bar
+                    dataKey="activeAssignments"
+                    name="Active Tasks"
+                    fill="#f59e0b"
+                    radius={[4, 4, 0, 0]}
                   />
-                </PieChart>
+                  <Bar
+                    dataKey="completedAssignments"
+                    name="Completed"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
               </ResponsiveContainer>
             </div>
-          )}
+          </div>
         </div>
-      </div>
-
-      {/* Sport Popularity Table Breakdown */}
-      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-        <h2 className="text-lg font-bold text-white tracking-tight">
-          Sport Popularity Breakdown
-        </h2>
-
-        {popularityData.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">No played matches within the selected period.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-800 text-xs font-bold uppercase text-slate-400">
-                <tr>
-                  <th className="pb-3">Rank</th>
-                  <th className="pb-3">Sport Name</th>
-                  <th className="pb-3 text-right">Sessions Played</th>
-                  <th className="pb-3 text-right">Relative Share</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {popularityData.map((item, index) => (
-                  <tr key={item.sportId} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 font-bold text-slate-500 text-xs">#{index + 1}</td>
-                    <td className="py-3 font-semibold text-white">{item.sportName}</td>
-                    <td className="py-3 text-right font-bold text-emerald-400">{item.count}</td>
-                    <td className="py-3 text-right text-slate-300 font-medium">{item.percentage}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Played Sessions Included in Report */}
-      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
-        <h2 className="text-lg font-bold text-white tracking-tight">
-          Sessions List in Report Range ({sessionsList.length})
-        </h2>
-
-        {sessionsList.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">No sessions played during this period.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-800 font-bold uppercase text-slate-400">
-                <tr>
-                  <th className="pb-3">Match ID</th>
-                  <th className="pb-3">Sport</th>
-                  <th className="pb-3">Date & Time</th>
-                  <th className="pb-3">Venue</th>
-                  <th className="pb-3">Organizer</th>
-                  <th className="pb-3 text-right">Joined Players</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {sessionsList.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 text-slate-400 font-mono">#{s.id}</td>
-                    <td className="py-3 font-semibold text-white">{s.sportName}</td>
-                    <td className="py-3 text-slate-300">
-                      {s.sessionDate} at {s.sessionTime}
-                    </td>
-                    <td className="py-3 text-slate-300">{s.venue}</td>
-                    <td className="py-3 text-slate-300">{s.creatorName}</td>
-                    <td className="py-3 text-right font-bold text-sky-400">{s.playersCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

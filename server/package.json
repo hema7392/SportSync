@@ -1,7 +1,7 @@
 {
-  "name": "sports-scheduler-server",
+  "name": "campusfix-server",
   "version": "1.0.0",
-  "description": "Backend API for SportSync Sports Scheduler",
+  "description": "Backend API for CampusFix Campus Maintenance Platform",
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",

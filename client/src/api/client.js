@@ -1,9 +1,9 @@
-// SportSync API client helper
+// CampusFix Centralized API Client
 
 const API_BASE = '/api';
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('sportsync_token');
+  const token = localStorage.getItem('campusfix_token');
 
   const headers = {
     'Content-Type': 'application/json',
@@ -22,7 +22,7 @@ export async function apiRequest(endpoint, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(data.message || 'An error occurred with the request.');
+    const error = new Error(data.message || 'An unexpected error occurred.');
     error.status = response.status;
     error.data = data;
     throw error;
@@ -30,3 +30,10 @@ export async function apiRequest(endpoint, options = {}) {
 
   return data;
 }
+
+export const api = {
+  get: (url) => apiRequest(url, { method: 'GET' }),
+  post: (url, body) => apiRequest(url, { method: 'POST', body: JSON.stringify(body) }),
+  patch: (url, body) => apiRequest(url, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: (url) => apiRequest(url, { method: 'DELETE' }),
+};

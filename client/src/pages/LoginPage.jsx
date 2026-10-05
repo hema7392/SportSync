@@ -1,145 +1,148 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Alert from '../components/Alert';
-import { Trophy, Mail, Lock, ArrowRight, ShieldCheck, Users } from 'lucide-react';
+import { Wrench, LogIn, AlertCircle, Shield, User, HardHat } from 'lucide-react';
 
-export default function LoginPage() {
+export function LoginPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (!email.trim() || !password) {
-      setError('Please provide both email and password.');
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-      const user = await login(email.trim(), password);
-      if (user.role === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      await login(email, password);
+      navigate(from, { replace: true });
     } catch (err) {
-      setError(err.message || 'Invalid email or password.');
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
-  const fillCredentials = (demoEmail, demoPass) => {
+  const fillCredentials = (demoEmail, demoPassword) => {
     setEmail(demoEmail);
-    setPassword(demoPass);
+    setPassword(demoPassword);
     setError('');
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 items-center justify-center shadow-lg shadow-emerald-500/20 mb-2">
-            <Trophy className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <Link to="/" className="inline-flex items-center gap-2.5 group">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:scale-105 transition">
+            <Wrench className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-3xl font-extrabold text-white tracking-tight">
-            Sign In to SportSync
-          </h2>
-          <p className="text-sm text-slate-400">
-            Welcome back! Enter your credentials to access your sports schedule.
-          </p>
-        </div>
-
-        {/* Demo Fast-Login Helpers */}
-        <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block text-center">
-            Quick Fill Demo Accounts
+          <span className="text-2xl font-black tracking-tight text-white font-display">
+            Campus<span className="text-sky-400">Fix</span>
           </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => fillCredentials('admin@sportsync.local', 'Admin@sportsync2026')}
-              className="py-1.5 px-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => fillCredentials('rahul@sportsync.local', 'Player@123')}
-              className="py-1.5 px-2.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Player Rahul
-            </button>
-          </div>
-        </div>
+        </Link>
+        <h2 className="mt-4 text-xl font-bold text-white tracking-tight">
+          Sign in to your account
+        </h2>
+        <p className="mt-1 text-xs text-slate-400">
+          Campus maintenance and issue resolution portal
+        </p>
+      </div>
 
-        {/* Form Box */}
-        <div className="p-7 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl space-y-5">
-          {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+          {error && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2.5 text-xs text-rose-300">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-400" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Email Address
               </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                />
-              </div>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@campusfix.edu"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500 transition"
+              />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Password
               </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                />
-              </div>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500 transition"
+              />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-600/25 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl font-bold text-sm bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-600/30 transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
+              <LogIn className="w-4 h-4" />
               {loading ? 'Signing in...' : 'Sign In'}
-              <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          <div className="text-center pt-2 border-t border-slate-800 text-xs text-slate-400">
-            Don't have an account yet?{' '}
-            <Link to="/signup" className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4">
-              Sign up here
-            </Link>
+          {/* Quick Demo Fill Buttons */}
+          <div className="pt-4 border-t border-slate-800 space-y-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">
+              Quick Demo Logins
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => fillCredentials('admin@campusfix.edu', 'Admin@CampusFix2026')}
+                className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold flex flex-col items-center gap-1 transition"
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => fillCredentials('rahul.sharma@campusfix.edu', 'Password123!')}
+                className="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-xs font-semibold flex flex-col items-center gap-1 transition"
+              >
+                <User className="w-4 h-4" />
+                Reporter
+              </button>
+              <button
+                type="button"
+                onClick={() => fillCredentials('vikram.electrician@campusfix.edu', 'Password123!')}
+                className="p-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 text-xs font-semibold flex flex-col items-center gap-1 transition"
+              >
+                <HardHat className="w-4 h-4" />
+                Technician
+              </button>
+            </div>
+          </div>
+
+          <div className="text-center pt-2">
+            <p className="text-xs text-slate-400">
+              Don't have an account?{' '}
+              <Link to="/signup" className="text-sky-400 hover:text-sky-300 font-semibold">
+                Sign up as a student or staff
+              </Link>
+            </p>
           </div>
         </div>
       </div>

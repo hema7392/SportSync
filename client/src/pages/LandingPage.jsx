@@ -1,197 +1,291 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { issuesApi } from '../api/issues';
 import {
-  Trophy,
-  Calendar,
-  Users,
+  Wrench,
   ShieldCheck,
-  BarChart3,
-  ArrowRight,
-  CheckCircle2,
-  Sparkles,
   Zap,
+  Droplets,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  ArrowRight,
+  Sparkles,
+  Users,
+  Building,
 } from 'lucide-react';
 
-export default function LandingPage() {
-  const { isAuthenticated, isAdmin, login } = useAuth();
+export function LandingPage() {
+  const { isAuthenticated, user, login } = useAuth();
   const navigate = useNavigate();
+
+  const [stats, setStats] = useState({
+    total: 16,
+    resolved: 10,
+    open: 6,
+  });
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await issuesApi.getIssues();
+        if (res?.issues) {
+          const total = res.issues.length;
+          const resolved = res.issues.filter((i) => ['RESOLVED', 'CLOSED'].includes(i.status)).length;
+          setStats({ total, resolved, open: total - resolved });
+        }
+      } catch (err) {
+        // Fallback to initial realistic stats
+      }
+    }
+    fetchStats();
+  }, []);
 
   const handleQuickLogin = async (email, password) => {
     try {
-      const user = await login(email, password);
-      if (user.role === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      await login(email, password);
+      navigate('/dashboard');
     } catch (err) {
-      alert(`Login failed: ${err.message}`);
+      navigate('/login');
     }
   };
 
   return (
-    <div className="space-y-24 py-12 sm:py-20">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Hero Section */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-8">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5" />
-          The Modern Sports Scheduler
-        </div>
+      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-32 px-4 sm:px-6 border-b border-slate-900">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(255,255,255,0))]" />
 
-        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-tight">
-          Plan. Play. <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Connect.</span>
-        </h1>
+        <div className="relative max-w-5xl mx-auto text-center space-y-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-semibold">
+            <Sparkles className="w-3.5 h-3.5" />
+            Centralized Campus Facility & Maintenance Operations
+          </div>
 
-        <p className="max-w-2xl mx-auto text-lg sm:text-xl text-slate-400 leading-relaxed font-normal">
-          SportSync is the full-stack sports coordination platform. Organize sports matches, reserve player slots, prevent scheduling conflicts, and empower admins with real-time analytics.
-        </p>
+          <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white font-display">
+            Campus<span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-teal-400">Fix</span>
+          </h1>
 
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-          {isAuthenticated ? (
-            <Link
-              to={isAdmin ? '/admin/dashboard' : '/dashboard'}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/30"
-            >
-              Go to Dashboard
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          ) : (
-            <>
+          <p className="text-xl sm:text-2xl font-medium text-slate-300">
+            "Report. Resolve. Improve."
+          </p>
+
+          <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            Eliminate informal complaints and delayed repairs. CampusFix provides an end-to-end,
+            audited workflow connecting students, faculty, administrators, and maintenance staff
+            for rapid infrastructure resolution.
+          </p>
+
+          {/* Call to action buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+            {isAuthenticated ? (
               <Link
-                to="/signup"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base transition-all shadow-lg shadow-emerald-600/30 hover:scale-[1.02]"
+                to="/dashboard"
+                className="px-6 py-3 rounded-xl font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-600/30 flex items-center gap-2 transition"
               >
-                Get Started Free
+                Go to Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link
-                to="/login"
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold text-base border border-slate-700 transition-colors"
-              >
-                Sign In
-              </Link>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <Link
+                  to="/signup"
+                  className="px-6 py-3 rounded-xl font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-600/30 flex items-center gap-2 transition"
+                >
+                  Report a Campus Problem
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/login"
+                  className="px-6 py-3 rounded-xl font-bold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 transition"
+                >
+                  Sign In to Portal
+                </Link>
+              </>
+            )}
+          </div>
 
-        {/* Quick Demo Logins for Evaluator */}
-        {!isAuthenticated && (
-          <div className="pt-6 border-t border-slate-800/80 max-w-xl mx-auto">
-            <span className="text-xs uppercase font-bold tracking-wider text-slate-500 block mb-3">
-              One-Click Demo Credentials (Click to Login)
-            </span>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin@sportsync.local', 'Admin@sportsync2026')}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center justify-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4 text-purple-400" />
-                Demo Admin (admin@sportsync.local)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('rahul@sportsync.local', 'Player@123')}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2"
-              >
-                <Users className="w-4 h-4 text-sky-400" />
-                Demo Player (rahul@sportsync.local)
-              </button>
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-3 gap-3 max-w-xl mx-auto pt-8">
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+              <p className="text-2xl sm:text-3xl font-extrabold text-white">{stats.total}</p>
+              <p className="text-xs text-slate-400 mt-1">Total Reported</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+              <p className="text-2xl sm:text-3xl font-extrabold text-emerald-400">{stats.resolved}</p>
+              <p className="text-xs text-slate-400 mt-1">Successfully Resolved</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-400">{stats.open}</p>
+              <p className="text-xs text-slate-400 mt-1">Active / In Progress</p>
             </div>
           </div>
-        )}
+        </div>
       </section>
 
-      {/* Feature Highlights Grid */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center max-w-xl mx-auto mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
-            Engineered for Players & Administrators
+      {/* Role Demonstration Showcase Section */}
+      <section className="py-16 px-4 sm:px-6 max-w-6xl mx-auto w-full">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white font-display">
+            Built for the Entire Campus Community
           </h2>
-          <p className="text-slate-400 text-sm">
-            Everything required to seamlessly organize matches, manage rosters, and analyze engagement.
+          <p className="text-sm text-slate-400 mt-2">
+            Click any role below to instantly demo the platform with pre-configured accounts.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 hover:border-slate-700 transition-colors">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Calendar className="w-6 h-6" />
+          {/* Admin Card */}
+          <div className="rounded-2xl border border-purple-500/20 bg-slate-900/60 p-6 flex flex-col justify-between hover:border-purple-500/40 transition">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Facility Administrators</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Assign issues to active technicians, manage campus categories, view workload analytics,
+                monitor SLA metrics, and maintain campus buildings and rooms.
+              </p>
+              <ul className="text-xs text-slate-300 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                  Technician dispatch & SLA tracking
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                  Interactive Recharts analytics
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                  Building & user administration
+                </li>
+              </ul>
             </div>
-            <h3 className="text-lg font-bold text-white">Dynamic Session Creation</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Create matches for any available sport with custom team rosters, venue details, and precise required player slot limits.
-            </p>
+            <button
+              onClick={() => handleQuickLogin('admin@campusfix.edu', 'Admin@CampusFix2026')}
+              className="mt-6 w-full py-2.5 rounded-xl font-bold text-xs bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 transition flex items-center justify-center gap-1.5"
+            >
+              Demo as Facility Admin
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 hover:border-slate-700 transition-colors">
-            <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-              <Zap className="w-6 h-6" />
+          {/* Reporter Card */}
+          <div className="rounded-2xl border border-sky-500/20 bg-slate-900/60 p-6 flex flex-col justify-between hover:border-sky-500/40 transition">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Students & Faculty</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Report broken equipment with cascading room selection, priority ratings, live progress
+                tracking, notifications, and reopen requests if repairs are incomplete.
+              </p>
+              <ul className="text-xs text-slate-300 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
+                  Fast photo & detail reporting
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
+                  Live chronological timeline
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" />
+                  In-app status notifications
+                </li>
+              </ul>
             </div>
-            <h3 className="text-lg font-bold text-white">Conflict-Free Joining</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Automatic validation blocks past matches, duplicate entries, full sessions, and prevents overlapping match times for players.
-            </p>
+            <button
+              onClick={() => handleQuickLogin('rahul.sharma@campusfix.edu', 'Password123!')}
+              className="mt-6 w-full py-2.5 rounded-xl font-bold text-xs bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/30 transition flex items-center justify-center gap-1.5"
+            >
+              Demo as Student Reporter
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 hover:border-slate-700 transition-colors">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <BarChart3 className="w-6 h-6" />
+          {/* Technician Card */}
+          <div className="rounded-2xl border border-teal-500/20 bg-slate-900/60 p-6 flex flex-col justify-between hover:border-teal-500/40 transition">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                <Wrench className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Maintenance Staff</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Focused task queue of assigned jobs, accept assignment, start work timestamps, add
+                internal notes, and submit detailed resolution summaries.
+              </p>
+              <ul className="text-xs text-slate-300 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                  Scoped assigned issues queue
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                  Work notes & progress logging
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                  Mandatory resolution notes
+                </li>
+              </ul>
             </div>
-            <h3 className="text-lg font-bold text-white">Admin Sports & Analytics</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Create and manage sports catalog. Filter played matches by custom date ranges and visualize sport popularity with interactive charts.
-            </p>
+            <button
+              onClick={() => handleQuickLogin('vikram.electrician@campusfix.edu', 'Password123!')}
+              className="mt-6 w-full py-2.5 rounded-xl font-bold text-xs bg-teal-600/20 hover:bg-teal-600 text-teal-300 hover:text-white border border-teal-500/30 transition flex items-center justify-center gap-1.5"
+            >
+              Demo as Maintenance Tech
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Roster & Cancellation Showcase */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 relative overflow-hidden">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 text-xs font-semibold">
-                Transparent Cancellation
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Clear Cancellation Reasons for Every Participant
-              </h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                When unavoidable circumstances occur, session creators must provide a concrete reason. Joined players are immediately informed with clear visual notices across their dashboards.
+      {/* Feature Pillars */}
+      <section className="py-16 px-4 sm:px-6 bg-slate-900/40 border-t border-slate-900">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white font-display">
+              Enterprise Facility Management Features
+            </h2>
+            <p className="text-sm text-slate-400 mt-2">
+              Engineered with strict backend validation, state machines, and relational integrity.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
+              <Zap className="w-6 h-6 text-sky-400 mb-3" />
+              <h4 className="font-bold text-white text-sm">State Machine Lifecycle</h4>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                Prevents arbitrary status jumps. Strictly validates REPORTED → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED.
               </p>
-              <ul className="space-y-2 text-sm text-slate-300">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Mandatory cancellation reasoning enforced by server
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Real-time slot counters and confirmed player tags
-                </li>
-              </ul>
             </div>
 
-            {/* Visual Card Example */}
-            <div className="p-5 rounded-2xl bg-slate-900 border border-rose-900/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-white text-base">Football</span>
-                <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                  CANCELLED
-                </span>
-              </div>
-              <div className="p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 text-xs text-rose-300">
-                <span className="font-bold uppercase tracking-wider block text-[10px] text-rose-400 mb-0.5">
-                  Cancellation Reason:
-                </span>
-                "Ground is unavailable due to heavy rain and maintenance."
-              </div>
-              <div className="text-xs text-slate-400 space-y-1">
-                <div>Venue: College Stadium - Turf B</div>
-                <div>Scheduled: 15 Oct 2026, 6:00 PM</div>
-              </div>
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
+              <Droplets className="w-6 h-6 text-teal-400 mb-3" />
+              <h4 className="font-bold text-white text-sm">Cascading Location Data</h4>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                Relational schema connecting Buildings to specific Floors and Rooms, preventing ambiguous reports.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
+              <Clock className="w-6 h-6 text-amber-400 mb-3" />
+              <h4 className="font-bold text-white text-sm">Complete Audit History</h4>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                Every state transition, assignment, work note, and resolution timestamp is permanently logged in IssueHistory.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
+              <Building className="w-6 h-6 text-purple-400 mb-3" />
+              <h4 className="font-bold text-white text-sm">Real-Time Reports</h4>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                Live Recharts analytics showing resolution speed, technician workload, and category distribution.
+              </p>
             </div>
           </div>
         </div>

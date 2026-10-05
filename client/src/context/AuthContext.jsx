@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem('sportsync_token'));
+  const [token, setToken] = useState(() => localStorage.getItem('campusfix_token'));
   const [loading, setLoading] = useState(true);
 
   // Initialize and verify user on mount if token is present
@@ -32,33 +32,38 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const data = await authApi.login({ email, password });
-    localStorage.setItem('sportsync_token', data.token);
+    localStorage.setItem('campusfix_token', data.token);
     setToken(data.token);
     setUser(data.user);
     return data.user;
   };
 
-  const signup = async (name, email, password) => {
-    const data = await authApi.signup({ name, email, password });
-    localStorage.setItem('sportsync_token', data.token);
+  const signup = async (userData) => {
+    const data = await authApi.signup(userData);
+    localStorage.setItem('campusfix_token', data.token);
     setToken(data.token);
     setUser(data.user);
     return data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem('sportsync_token');
+    localStorage.removeItem('campusfix_token');
     setToken(null);
     setUser(null);
     authApi.logout().catch(() => {});
   };
 
-  const changePassword = async (currentPassword, newPassword, confirmNewPassword) => {
-    return await authApi.changePassword({
-      currentPassword,
-      newPassword,
-      confirmNewPassword,
-    });
+  const changePassword = async (currentPassword, newPassword) => {
+    return await authApi.changePassword({ currentPassword, newPassword });
+  };
+
+  const refreshUser = async () => {
+    try {
+      const data = await authApi.getMe();
+      setUser(data.user);
+    } catch (err) {
+      console.warn('Failed to refresh user:', err);
+    }
   };
 
   const value = {
@@ -67,10 +72,13 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'ADMIN',
+    isReporter: user?.role === 'REPORTER',
+    isTechnician: user?.role === 'TECHNICIAN',
     login,
     signup,
     logout,
     changePassword,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
