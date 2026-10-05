@@ -1,7 +1,7 @@
 services:
   # Web Service running full-stack Express + React SPA
   - type: web
-    name: campusfix
+    name: sportsync
     runtime: node
     plan: free
     region: oregon
@@ -14,21 +14,21 @@ services:
         value: 10000
       - key: DATABASE_URL
         fromDatabase:
-          name: campusfix-db
+          name: sportsync-db
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
-        value: admin@campusfix.edu
+        value: admin@sportsync.local
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ADMIN_NAME
-        value: Campus Facilities Administrator
+        value: System Administrator
 
 databases:
   # Managed PostgreSQL Database on Render
-  - name: campusfix-db
+  - name: sportsync-db
     plan: free
     region: oregon
-    databaseName: campusfix
-    user: campusfix_user
+    databaseName: sportsync
+    user: sportsync_user

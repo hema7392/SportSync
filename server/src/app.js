@@ -7,13 +7,9 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const authRoutes = require('./routes/authRoutes');
-const issueRoutes = require('./routes/issueRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
-const buildingRoutes = require('./routes/buildingRoutes');
-const locationRoutes = require('./routes/locationRoutes');
-const userRoutes = require('./routes/userRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const reportRoutes = require('./routes/reportRoutes');
+const sportsRoutes = require('./routes/sportsRoutes');
+const sessionsRoutes = require('./routes/sessionsRoutes');
+const reportsRoutes = require('./routes/reportsRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -37,20 +33,15 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'CampusFix API',
-    version: '1.0.0',
+    service: 'SportSync API',
   });
 });
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/issues', issueRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/buildings', buildingRoutes);
-app.use('/api/locations', locationRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/reports', reportRoutes);
+app.use('/api/sports', sportsRoutes);
+app.use('/api/sessions', sessionsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // If client build exists in production, serve it
 const clientDistPath = path.join(__dirname, '../../client/dist');
@@ -66,7 +57,7 @@ app.get('*', (req, res) => {
   const indexPath = path.join(clientDistPath, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
-      res.status(404).send('CampusFix Client build not found. Run "npm run build" in /client first.');
+      res.status(404).send('SportSync Client build not found. Run "npm run build" in /client first.');
     }
   });
 });

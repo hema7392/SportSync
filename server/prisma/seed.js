@@ -1,677 +1,273 @@
-// Idempotent Seed Script for CampusFix
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
+const path = require('path');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('--- Starting CampusFix Database Seed ---');
+  console.log('--- Starting SportSync Database Seeding ---');
 
-  // Password hashing helper
-  const hashPassword = async (pwd) => {
-    return await bcrypt.hash(pwd, 10);
-  };
+  // 1. Seed Administrator
+  let rawAdminEmail = process.env.ADMIN_EMAIL || 'admin@sportsync.local';
+  rawAdminEmail = rawAdminEmail.trim();
+  if (
+    (rawAdminEmail.startsWith('"') && rawAdminEmail.endsWith('"')) ||
+    (rawAdminEmail.startsWith("'") && rawAdminEmail.endsWith("'"))
+  ) {
+    rawAdminEmail = rawAdminEmail.slice(1, -1).trim();
+  }
+  const adminEmail = rawAdminEmail.toLowerCase();
 
-  const defaultPasswordHash = await hashPassword('Password123!');
+  let rawAdminPassword = process.env.ADMIN_PASSWORD || 'Admin@sportsync2026';
+  rawAdminPassword = rawAdminPassword.trim();
+  if (
+    (rawAdminPassword.startsWith('"') && rawAdminPassword.endsWith('"')) ||
+    (rawAdminPassword.startsWith("'") && rawAdminPassword.endsWith("'"))
+  ) {
+    rawAdminPassword = rawAdminPassword.slice(1, -1).trim();
+  }
+  const adminPassword = rawAdminPassword;
 
-  // 1. Seed Admin
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@campusfix.edu').toLowerCase();
-  const adminName = process.env.ADMIN_NAME || 'Campus Facilities Administrator';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@CampusFix2026';
-  const adminPasswordHash = await hashPassword(adminPassword);
+  let rawAdminName = process.env.ADMIN_NAME || 'System Administrator';
+  rawAdminName = rawAdminName.trim();
+  if (
+    (rawAdminName.startsWith('"') && rawAdminName.endsWith('"')) ||
+    (rawAdminName.startsWith("'") && rawAdminName.endsWith("'"))
+  ) {
+    rawAdminName = rawAdminName.slice(1, -1).trim();
+  }
+  const adminName = rawAdminName;
 
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      name: adminName,
-      role: 'ADMIN',
-      isActive: true,
-      passwordHash: adminPasswordHash,
-      department: 'Campus Facilities Directorate',
-    },
-    create: {
-      name: adminName,
-      email: adminEmail,
-      passwordHash: adminPasswordHash,
-      role: 'ADMIN',
-      department: 'Campus Facilities Directorate',
-      phone: '+1-555-0100',
-      isActive: true,
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
+
+  const existingAdmin = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: adminEmail },
+        { role: 'ADMIN' },
+      ],
     },
   });
-  console.log(`Admin account ready: ${admin.email}`);
 
-  // 2. Seed Reporters
-  const reportersData = [
-    {
-      name: 'Rahul Sharma',
-      email: 'rahul.sharma@campusfix.edu',
-      department: 'Computer Science & Engineering',
-      phone: '+1-555-0201',
-    },
-    {
-      name: 'Priya Patel',
-      email: 'priya.patel@campusfix.edu',
-      department: 'Biotechnology & Health',
-      phone: '+1-555-0202',
-    },
-    {
-      name: 'Arjun Nair',
-      email: 'arjun.nair@campusfix.edu',
-      department: 'Student Affairs Council',
-      phone: '+1-555-0203',
-    },
-    {
-      name: 'Dr. Sanjay Mehta',
-      email: 'dr.mehta@campusfix.edu',
-      department: 'Faculty of Pure Sciences',
-      phone: '+1-555-0204',
-    },
+  let admin;
+  if (existingAdmin) {
+    admin = await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        name: adminName,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'ADMIN',
+      },
+    });
+    console.log(`✓ Admin user updated: ${admin.email} (ID: ${admin.id}, Role: ${admin.role})`);
+  } else {
+    admin = await prisma.user.create({
+      data: {
+        name: adminName,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'ADMIN',
+      },
+    });
+    console.log(`✓ Admin user created: ${admin.email} (ID: ${admin.id}, Role: ${admin.role})`);
+  }
+
+  // 2. Seed Demo Players
+  const defaultPlayerPasswordHash = await bcrypt.hash('Player@123', 10);
+  const demoPlayersData = [
+    { name: 'Rahul Sharma', email: 'rahul@sportsync.local' },
+    { name: 'Anjali Verma', email: 'anjali@sportsync.local' },
+    { name: 'Hemadri Roy', email: 'hemadri@sportsync.local' },
+    { name: 'Arjun Das', email: 'arjun@sportsync.local' },
   ];
 
-  const reporters = [];
-  for (const r of reportersData) {
-    const user = await prisma.user.upsert({
-      where: { email: r.email },
+  const players = [];
+  for (const p of demoPlayersData) {
+    const player = await prisma.user.upsert({
+      where: { email: p.email },
       update: {
-        name: r.name,
-        role: 'REPORTER',
-        department: r.department,
-        passwordHash: defaultPasswordHash,
-        isActive: true,
+        name: p.name,
+        passwordHash: defaultPlayerPasswordHash,
+        role: 'PLAYER',
       },
       create: {
-        name: r.name,
-        email: r.email,
-        passwordHash: defaultPasswordHash,
-        role: 'REPORTER',
-        department: r.department,
-        phone: r.phone,
-        isActive: true,
+        name: p.name,
+        email: p.email,
+        passwordHash: defaultPlayerPasswordHash,
+        role: 'PLAYER',
       },
     });
-    reporters.push(user);
+    players.push(player);
   }
-  console.log(`Seeded ${reporters.length} Reporters.`);
+  console.log(`✓ Seeded ${players.length} demo players`);
 
-  // 3. Seed Technicians
-  const techniciansData = [
-    {
-      name: 'Vikram Singh',
-      email: 'vikram.electrician@campusfix.edu',
-      department: 'Electrical Maintenance',
-      phone: '+1-555-0301',
-    },
-    {
-      name: 'Suresh Kumar',
-      email: 'suresh.plumber@campusfix.edu',
-      department: 'Plumbing & Water Systems',
-      phone: '+1-555-0302',
-    },
-    {
-      name: 'Ananya Sen',
-      email: 'ananya.ittech@campusfix.edu',
-      department: 'IT Infrastructure & Networks',
-      phone: '+1-555-0303',
-    },
+  // 3. Seed Default Sports
+  const defaultSports = [
+    'Football',
+    'Cricket',
+    'Badminton',
+    'Basketball',
+    'Volleyball',
+    'Tennis',
   ];
 
-  const technicians = [];
-  for (const t of techniciansData) {
-    const user = await prisma.user.upsert({
-      where: { email: t.email },
-      update: {
-        name: t.name,
-        role: 'TECHNICIAN',
-        department: t.department,
-        passwordHash: defaultPasswordHash,
-        isActive: true,
-      },
+  const sports = [];
+  for (const sportName of defaultSports) {
+    const sport = await prisma.sport.upsert({
+      where: { name: sportName },
+      update: {},
       create: {
-        name: t.name,
-        email: t.email,
-        passwordHash: defaultPasswordHash,
-        role: 'TECHNICIAN',
-        department: t.department,
-        phone: t.phone,
-        isActive: true,
+        name: sportName,
+        createdById: admin.id,
       },
     });
-    technicians.push(user);
+    sports.push(sport);
   }
-  console.log(`Seeded ${technicians.length} Technicians.`);
+  console.log(`✓ Seeded ${sports.length} sports`);
 
-  // 4. Seed Categories
-  const categoriesData = [
-    { name: 'Electrical', description: 'Power sockets, lighting fixtures, circuit breakers, and switches', icon: 'Zap' },
-    { name: 'Plumbing', description: 'Water leakage, faucet repairs, washroom fixtures, and pipes', icon: 'Droplets' },
-    { name: 'Furniture', description: 'Desks, chairs, doors, window latches, and classroom podiums', icon: 'Armchair' },
-    { name: 'Cleanliness', description: 'Waste bins, sanitation, spill cleanup, and pest control', icon: 'Sparkles' },
-    { name: 'Internet & Network', description: 'Campus Wi-Fi connectivity, LAN wall ports, and routers', icon: 'Wifi' },
-    { name: 'Security & Safety', description: 'Door electronic locks, fire alarms, emergency lights, and CCTV', icon: 'ShieldCheck' },
-    { name: 'Classroom Equipment', description: 'Overhead projectors, smart boards, HDMI cables, and microphones', icon: 'Monitor' },
-    { name: 'Laboratory Equipment', description: 'Lab gas regulators, ventilation fume hoods, and water baths', icon: 'FlaskConical' },
-    { name: 'HVAC & Climate Control', description: 'Air conditioning, central heating, and ventilation louvers', icon: 'Fan' },
-  ];
+  // 4. Seed Sample Sessions
+  const football = sports.find((s) => s.name === 'Football') || sports[0];
+  const cricket = sports.find((s) => s.name === 'Cricket') || sports[1];
+  const badminton = sports.find((s) => s.name === 'Badminton') || sports[2];
 
-  const categoryMap = {};
-  for (const c of categoriesData) {
-    const cat = await prisma.category.upsert({
-      where: { name: c.name },
-      update: { description: c.description, icon: c.icon, isActive: true },
-      create: {
-        name: c.name,
-        description: c.description,
-        icon: c.icon,
-        isActive: true,
-      },
-    });
-    categoryMap[c.name] = cat;
-  }
-  console.log(`Seeded ${Object.keys(categoryMap).length} Categories.`);
+  // Helper date generators
+  const now = new Date();
+  
+  // Future dates
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const futureDateTime = new Date(`${tomorrowStr}T18:00:00.000Z`);
 
-  // 5. Seed Buildings and Locations
-  const buildingsData = [
-    {
-      name: 'Academic Block A',
-      code: 'ACAD-A',
-      description: 'Main lecture halls, administrative deanery, and student affairs',
-      locations: [
-        { name: 'Lecture Hall 101', floor: 'Ground Floor' },
-        { name: 'Room 204 Computer Lab', floor: '2nd Floor' },
-        { name: 'Faculty Staff Room 302', floor: '3rd Floor' },
-        { name: 'Ground Floor Restroom (East)', floor: 'Ground Floor' },
-      ],
-    },
-    {
-      name: 'Science & Engineering Wing',
-      code: 'ENGG-SCI',
-      description: 'Undergraduate and research laboratories, robotics workshop',
-      locations: [
-        { name: 'Advanced Electronics Lab 105', floor: '1st Floor' },
-        { name: 'Chemistry Research Lab 210', floor: '2nd Floor' },
-        { name: 'Seminar Hall 3', floor: '3rd Floor' },
-        { name: 'Server & Rack Room', floor: 'Basement' },
-      ],
-    },
-    {
-      name: 'Central Library',
-      code: 'LIB',
-      description: 'Multi-level library with quiet zones and digital research carrels',
-      locations: [
-        { name: 'Main Reading Room', floor: '1st Floor' },
-        { name: 'Digital Archives Section', floor: '2nd Floor' },
-        { name: 'Periodicals Lounge', floor: 'Ground Floor' },
-      ],
-    },
-    {
-      name: 'Student Hostel Block 1',
-      code: 'HSTL-1',
-      description: 'Men undergraduate residency wing',
-      locations: [
-        { name: 'Room 112 (Wing B)', floor: '1st Floor' },
-        { name: '2nd Floor Common Washroom', floor: '2nd Floor' },
-        { name: 'Recreation & TV Lounge', floor: 'Ground Floor' },
-      ],
-    },
-    {
-      name: 'Student Hostel Block 2',
-      code: 'HSTL-2',
-      description: 'Women undergraduate residency wing',
-      locations: [
-        { name: 'Room 205 (Wing A)', floor: '2nd Floor' },
-        { name: '3rd Floor Study Hall', floor: '3rd Floor' },
-        { name: 'Ground Floor Laundry Facility', floor: 'Ground Floor' },
-      ],
-    },
-    {
-      name: 'Campus Cafeteria & Food Court',
-      code: 'CAFE',
-      description: 'Central dining hall, food preparation kitchen, and cafe patio',
-      locations: [
-        { name: 'Main Dining Hall', floor: 'Ground Floor' },
-        { name: 'Kitchen Dishwashing Area', floor: 'Ground Floor' },
-        { name: 'Outdoor Patio Seating', floor: 'Outdoor' },
-      ],
-    },
-    {
-      name: 'Indoor Sports Complex',
-      code: 'SPORTS',
-      description: 'Badminton courts, fitness gym, and athletic locker rooms',
-      locations: [
-        { name: 'Gymnasium & Weight Room', floor: 'Ground Floor' },
-        { name: 'Badminton Court 2', floor: '1st Floor' },
-        { name: 'Locker Rooms & Shower Area', floor: 'Ground Floor' },
-      ],
-    },
-  ];
+  const nextWeek = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const nextWeekStr = nextWeek.toISOString().split('T')[0];
+  const nextWeekDateTime = new Date(`${nextWeekStr}T09:00:00.000Z`);
 
-  const locationList = [];
-  for (const b of buildingsData) {
-    const building = await prisma.building.upsert({
-      where: { name: b.name },
-      update: { code: b.code, description: b.description, isActive: true },
-      create: {
-        name: b.name,
-        code: b.code,
-        description: b.description,
-        isActive: true,
+  // Past dates (for reports & completed sessions)
+  const pastDate1 = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const pastDate1Str = pastDate1.toISOString().split('T')[0];
+  const pastDateTime1 = new Date(`${pastDate1Str}T17:00:00.000Z`);
+
+  const pastDate2 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const pastDate2Str = pastDate2.toISOString().split('T')[0];
+  const pastDateTime2 = new Date(`${pastDate2Str}T16:00:00.000Z`);
+
+  // 4. Seed Sample Sessions (Idempotent: check if each sample session already exists before creating)
+  async function seedSessionIfMissing(sessionData) {
+    const existing = await prisma.sportSession.findFirst({
+      where: {
+        venue: sessionData.venue,
+        creatorId: sessionData.creatorId,
       },
     });
 
-    for (const loc of b.locations) {
-      let location = await prisma.location.findFirst({
-        where: { buildingId: building.id, name: loc.name },
-      });
-
-      if (!location) {
-        location = await prisma.location.create({
-          data: {
-            buildingId: building.id,
-            name: loc.name,
-            floor: loc.floor,
-            isActive: true,
-          },
-        });
-      }
-      locationList.push(location);
+    if (existing) {
+      return existing;
     }
-  }
-  console.log(`Seeded ${buildingsData.length} Buildings and ${locationList.length} Locations.`);
 
-  // 6. Seed Realistic Issues (16+ sample issues with varying statuses, priorities, and audit trails)
-  const sampleIssues = [
-    {
-      title: 'Ceiling Fluorescent Light Flickering Rapidly',
-      description: 'The overhead tube light right above row 4 in Lecture Hall 101 has been flickering constantly during lectures, causing severe eye strain.',
-      category: 'Electrical',
-      buildingIndex: 0,
-      locationIndex: 0,
-      specificArea: 'Row 4, seat 12 ceiling panel',
-      priority: 'MEDIUM',
-      status: 'REPORTED',
-      reporterIndex: 0,
-    },
-    {
-      title: 'Water Pipe Leaking Under Sink in 2nd Floor Restroom',
-      description: 'Continuous water drip from the main inlet valve under sink #3 is causing a large puddle on the tile floor, making it slippery and dangerous.',
-      category: 'Plumbing',
-      buildingIndex: 0,
-      locationIndex: 3,
-      specificArea: 'Under handwash sink #3',
-      priority: 'HIGH',
-      status: 'ASSIGNED',
-      reporterIndex: 1,
-      assignedTechIndex: 1, // Suresh Kumar (Plumber)
-    },
-    {
-      title: 'Wi-Fi Access Point Dropping Connection Intermittently',
-      description: 'The 5GHz campus SSID disconnects every 10 minutes in the 2nd Floor Digital Archives, preventing students from downloading research journals.',
-      category: 'Internet & Network',
-      buildingIndex: 2,
-      locationIndex: 8,
-      specificArea: 'Ceiling mount near Study Carrel 14',
-      priority: 'HIGH',
-      status: 'IN_PROGRESS',
-      reporterIndex: 2,
-      assignedTechIndex: 2, // Ananya Sen (IT)
-    },
-    {
-      title: 'Broken Wooden Armrest on Auditorium Chair',
-      description: 'Seat B-18 in Lecture Hall 101 has a jagged, splintered wooden armrest that tore a student sweater this morning.',
-      category: 'Furniture',
-      buildingIndex: 0,
-      locationIndex: 0,
-      specificArea: 'Auditorium Seat B-18',
-      priority: 'LOW',
-      status: 'RESOLVED',
-      reporterIndex: 0,
-      assignedTechIndex: 0, // Vikram
-      resolutionNote: 'Replaced the damaged wooden armrest with a new varnished beech unit. Inspected neighboring chairs as well.',
-      resolvedAgoDays: 2,
-    },
-    {
-      title: 'Air Conditioning Unit Blowing Warm Air in Chemistry Lab',
-      description: 'The split AC unit in Chemistry Research Lab 210 is not cooling. Room temperature has reached 31°C, which is affecting sensitive volatile reagents.',
-      category: 'HVAC & Climate Control',
-      buildingIndex: 1,
-      locationIndex: 5,
-      specificArea: 'North wall AC unit #2',
-      priority: 'CRITICAL',
-      status: 'ASSIGNED',
-      reporterIndex: 3, // Dr. Sanjay Mehta
-      assignedTechIndex: 1, // Suresh
-    },
-    {
-      title: 'HDMI Display Output Not Working on Podium Projector',
-      description: 'Connecting laptop via HDMI in Seminar Hall 3 shows "No Signal" on the main Sony overhead projector.',
-      category: 'Classroom Equipment',
-      buildingIndex: 1,
-      locationIndex: 6,
-      specificArea: 'Speaker podium AV wall plate',
-      priority: 'HIGH',
-      status: 'RESOLVED',
-      reporterIndex: 3,
-      assignedTechIndex: 2, // Ananya
-      resolutionNote: 'Faulty 10m high-speed HDMI cable behind the wall faceplate replaced. Video and audio test passed with 1080p source.',
-      resolvedAgoDays: 5,
-      closed: true,
-    },
-    {
-      title: 'Washroom Shower Head Detached in Hostel 1',
-      description: 'The showerhead in the second floor communal washroom broke off at the threaded elbow joint, spraying water directly into the light fitting.',
-      category: 'Plumbing',
-      buildingIndex: 3,
-      locationIndex: 10,
-      specificArea: 'Cubicle 2 shower stall',
-      priority: 'HIGH',
-      status: 'REOPENED',
-      reporterIndex: 0,
-      assignedTechIndex: 1,
-      reopenReason: 'The replacement fixture started leaking around the seal again after 2 hours of use. Water pressure causes it to drip.',
-    },
-    {
-      title: 'Main Entrance Magnetic Access Card Reader Beeping Constantly',
-      description: 'The RFID badge scanner at the Server & Rack room basement entrance is beeping continuously and not unlocking the electromagnetic strike.',
-      category: 'Security & Safety',
-      buildingIndex: 1,
-      locationIndex: 7,
-      specificArea: 'Basement server room secure double door',
-      priority: 'CRITICAL',
-      status: 'IN_PROGRESS',
-      reporterIndex: 2,
-      assignedTechIndex: 2,
-    },
-    {
-      title: 'Spilled Beverage Left Sticky Residue on Carpet',
-      description: 'A large dark stain and sticky sugary residue on the carpet near the entrance of the Main Reading Room in the library.',
-      category: 'Cleanliness',
-      buildingIndex: 2,
-      locationIndex: 7,
-      specificArea: 'Aisle 3 carpeted floor',
-      priority: 'LOW',
-      status: 'REPORTED',
-      reporterIndex: 1,
-    },
-    {
-      title: 'Exhaust Fume Hood Velocity Sensor Alarm Beeping in Lab 210',
-      description: 'The fume hood velocity monitor is indicating face velocity below 80 FPM and triggering the loud audible buzzer.',
-      category: 'Laboratory Equipment',
-      buildingIndex: 1,
-      locationIndex: 5,
-      specificArea: 'Fume Hood Bay #4',
-      priority: 'CRITICAL',
-      status: 'ASSIGNED',
-      reporterIndex: 3,
-      assignedTechIndex: 0,
-    },
-    {
-      title: 'Gymnasium Treadmill #3 Emergency Stop Button Sticking',
-      description: 'The magnetic safety key clamp is fine, but the physical red mushroom button on Treadmill 3 does not reset smoothly after being pressed.',
-      category: 'Furniture',
-      buildingIndex: 6,
-      locationIndex: 15,
-      specificArea: 'Cardio equipment zone treadmill 3',
-      priority: 'MEDIUM',
-      status: 'REPORTED',
-      reporterIndex: 0,
-    },
-    {
-      title: 'Ethernet Wall Port Broken in Computer Lab 204',
-      description: 'The RJ45 clip housing on Jack 18 has snapped off. Patch cables slip right out whenever a student slightly nudges the desk.',
-      category: 'Internet & Network',
-      buildingIndex: 0,
-      locationIndex: 1,
-      specificArea: 'Workstation 18 lower wall jack',
-      priority: 'MEDIUM',
-      status: 'RESOLVED',
-      reporterIndex: 0,
-      assignedTechIndex: 2,
-      resolutionNote: 'Re-punched a new Cat6 keystone jack and installed faceplate. Cable certifier verified gigabit speeds.',
-      resolvedAgoDays: 7,
-      closed: true,
-    },
-    {
-      title: 'Cafeteria Handwash Basin Drain Backing Up',
-      description: 'Water drains very slowly from the twin stainless basins near the dining entrance, creating a backup during peak lunch hours.',
-      category: 'Plumbing',
-      buildingIndex: 5,
-      locationIndex: 13,
-      specificArea: 'Patron handwash station right basin',
-      priority: 'HIGH',
-      status: 'ASSIGNED',
-      reporterIndex: 1,
-      assignedTechIndex: 1,
-    },
-    {
-      title: 'Classroom 101 Wall Clock Stopped at 3:15',
-      description: 'The analog wall clock has run out of battery. Both students and professors rely on it during timed in-class quizzes.',
-      category: 'Classroom Equipment',
-      buildingIndex: 0,
-      locationIndex: 0,
-      specificArea: 'Front wall above whiteboard',
-      priority: 'LOW',
-      status: 'RESOLVED',
-      reporterIndex: 0,
-      assignedTechIndex: 0,
-      resolutionNote: 'Replaced AA alkaline battery and synchronized time to standard atomic time.',
-      resolvedAgoDays: 10,
-      closed: true,
-    },
-    {
-      title: 'Outdoor Patio Light Pole Fixture Lens Cracked',
-      description: 'Heavy wind branch impact cracked the glass weather enclosure on pole light 4 outside the cafeteria patio.',
-      category: 'Electrical',
-      buildingIndex: 5,
-      locationIndex: 14,
-      specificArea: 'Patio lamp post #4',
-      priority: 'MEDIUM',
-      status: 'REPORTED',
-      reporterIndex: 2,
-    },
-  ];
-
-  for (const s of sampleIssues) {
-    const reporter = reporters[s.reporterIndex];
-    const category = categoryMap[s.category] || categoryMap['Electrical'];
-    const location = locationList[s.locationIndex] || locationList[0];
-
-    // Check if issue with this title already exists
-    let issue = await prisma.issue.findFirst({
-      where: { title: s.title, reporterId: reporter.id },
+    return prisma.sportSession.create({
+      data: sessionData,
     });
-
-    if (!issue) {
-      const resolvedAtDate = s.status === 'RESOLVED' || s.closed
-        ? new Date(Date.now() - (s.resolvedAgoDays || 1) * 24 * 60 * 60 * 1000)
-        : null;
-
-      const closedAtDate = s.closed ? new Date(Date.now() - (s.resolvedAgoDays - 1 || 0.5) * 24 * 60 * 60 * 1000) : null;
-      const reopenedAtDate = s.status === 'REOPENED' ? new Date() : null;
-
-      issue = await prisma.issue.create({
-        data: {
-          title: s.title,
-          description: s.description,
-          reporterId: reporter.id,
-          categoryId: category.id,
-          locationId: location.id,
-          specificArea: s.specificArea,
-          priority: s.priority,
-          status: s.closed ? 'CLOSED' : s.status,
-          resolutionNote: s.resolutionNote || null,
-          resolvedAt: resolvedAtDate,
-          closedAt: closedAtDate,
-          reopenedAt: reopenedAtDate,
-          createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // Created 2 weeks ago
-        },
-      });
-
-      // Initial history
-      await prisma.issueHistory.create({
-        data: {
-          issueId: issue.id,
-          userId: reporter.id,
-          action: 'CREATED',
-          fromStatus: null,
-          toStatus: 'REPORTED',
-          description: `Issue reported by ${reporter.name}`,
-          createdAt: issue.createdAt,
-        },
-      });
-
-      // Assignment if applicable
-      if (s.assignedTechIndex !== undefined) {
-        const tech = technicians[s.assignedTechIndex];
-        const isCompleted = ['RESOLVED', 'CLOSED'].includes(issue.status);
-
-        await prisma.issueAssignment.create({
-          data: {
-            issueId: issue.id,
-            technicianId: tech.id,
-            assignedById: admin.id,
-            status: isCompleted ? 'COMPLETED' : 'ACTIVE',
-            assignedAt: new Date(issue.createdAt.getTime() + 2 * 60 * 60 * 1000),
-            completedAt: resolvedAtDate,
-          },
-        });
-
-        await prisma.issueHistory.create({
-          data: {
-            issueId: issue.id,
-            userId: admin.id,
-            action: 'ASSIGNED',
-            fromStatus: 'REPORTED',
-            toStatus: 'ASSIGNED',
-            description: `Assigned to technician ${tech.name} by ${admin.name}`,
-            createdAt: new Date(issue.createdAt.getTime() + 2 * 60 * 60 * 1000),
-          },
-        });
-
-        if (['IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REOPENED'].includes(issue.status)) {
-          await prisma.issueHistory.create({
-            data: {
-              issueId: issue.id,
-              userId: tech.id,
-              action: 'STATUS_CHANGED',
-              fromStatus: 'ASSIGNED',
-              toStatus: 'IN_PROGRESS',
-              description: `Work started by ${tech.name}`,
-              createdAt: new Date(issue.createdAt.getTime() + 4 * 60 * 60 * 1000),
-            },
-          });
-        }
-
-        if (s.resolutionNote) {
-          await prisma.issueHistory.create({
-            data: {
-              issueId: issue.id,
-              userId: tech.id,
-              action: 'RESOLVED',
-              fromStatus: 'IN_PROGRESS',
-              toStatus: 'RESOLVED',
-              description: `Resolved: "${s.resolutionNote}"`,
-              createdAt: resolvedAtDate,
-            },
-          });
-
-          // Add a technician comment
-          await prisma.issueComment.create({
-            data: {
-              issueId: issue.id,
-              userId: tech.id,
-              message: `Completed repair and testing. Note: ${s.resolutionNote}`,
-              isInternal: false,
-              createdAt: resolvedAtDate,
-            },
-          });
-        }
-
-        if (s.closed) {
-          await prisma.issueHistory.create({
-            data: {
-              issueId: issue.id,
-              userId: reporter.id,
-              action: 'CLOSED',
-              fromStatus: 'RESOLVED',
-              toStatus: 'CLOSED',
-              description: `Confirmed repaired and closed by ${reporter.name}`,
-              createdAt: closedAtDate,
-            },
-          });
-        }
-
-        if (s.reopenReason) {
-          await prisma.issueHistory.create({
-            data: {
-              issueId: issue.id,
-              userId: reporter.id,
-              action: 'REOPENED',
-              fromStatus: 'RESOLVED',
-              toStatus: 'REOPENED',
-              description: `Reopened by ${reporter.name}: "${s.reopenReason}"`,
-              createdAt: reopenedAtDate,
-            },
-          });
-
-          await prisma.issueComment.create({
-            data: {
-              issueId: issue.id,
-              userId: reporter.id,
-              message: s.reopenReason,
-              isInternal: false,
-              createdAt: reopenedAtDate,
-            },
-          });
-        }
-      }
-    }
   }
 
-  // 7. Seed Sample Notifications
-  const sampleNotifications = [
-    {
-      userId: technicians[0].id,
-      title: 'New Issue Assignment',
-      message: 'You have been assigned to issue: "Classroom 101 Wall Clock Stopped at 3:15"',
+  // Create upcoming session 1
+  await seedSessionIfMissing({
+    sportId: football.id,
+    creatorId: players[0].id, // Rahul
+    sessionDate: tomorrowStr,
+    sessionTime: '18:00',
+    startDateTime: futureDateTime,
+    venue: 'Main College Stadium - Field A',
+    teamA: JSON.stringify(['Rahul', 'Hemadri']),
+    teamB: JSON.stringify(['Anjali']),
+    additionalPlayersRequired: 3,
+    status: 'UPCOMING',
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team B' }, // Anjali joined
+      ],
     },
-    {
-      userId: reporters[0].id,
-      title: 'Issue Status Updated',
-      message: 'Your report "Ceiling Fluorescent Light Flickering Rapidly" was received and is pending technician dispatch.',
-    },
-    {
-      userId: reporters[1].id,
-      title: 'Issue Assigned',
-      message: 'Your plumbing report has been assigned to Technician Suresh Kumar.',
-    },
-  ];
+  });
 
-  for (const n of sampleNotifications) {
-    const existing = await prisma.notification.findFirst({
-      where: { userId: n.userId, title: n.title },
-    });
-    if (!existing) {
-      await prisma.notification.create({
-        data: {
-          userId: n.userId,
-          title: n.title,
-          message: n.message,
-          isRead: false,
-        },
-      });
-    }
-  }
+  // Create upcoming session 2
+  await seedSessionIfMissing({
+    sportId: cricket.id,
+    creatorId: admin.id, // Admin can create sessions
+    sessionDate: nextWeekStr,
+    sessionTime: '09:00',
+    startDateTime: nextWeekDateTime,
+    venue: 'Green Valley Sports Complex',
+    teamA: JSON.stringify(['Admin Player', 'Sam']),
+    teamB: JSON.stringify(['Vikram']),
+    additionalPlayersRequired: 4,
+    status: 'UPCOMING',
+  });
 
-  console.log('--- CampusFix Database Seed Completed Successfully ---');
+  // Create past completed sessions for reports
+  await seedSessionIfMissing({
+    sportId: football.id,
+    creatorId: players[0].id,
+    sessionDate: pastDate1Str,
+    sessionTime: '17:00',
+    startDateTime: pastDateTime1,
+    venue: 'Downtown Turf Arena',
+    teamA: JSON.stringify(['Rahul', 'Sunil']),
+    teamB: JSON.stringify(['Karan', 'Dev']),
+    additionalPlayersRequired: 2,
+    status: 'COMPLETED',
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team A' },
+        { userId: players[2].id, team: 'Team B' },
+      ],
+    },
+  });
+
+  await seedSessionIfMissing({
+    sportId: cricket.id,
+    creatorId: players[1].id,
+    sessionDate: pastDate2Str,
+    sessionTime: '16:00',
+    startDateTime: pastDateTime2,
+    venue: 'City Cricket Ground',
+    teamA: JSON.stringify(['Anjali', 'Priya']),
+    teamB: JSON.stringify(['Sneha', 'Ritu']),
+    additionalPlayersRequired: 2,
+    status: 'COMPLETED',
+  });
+
+  // Create a cancelled session to demonstrate cancellation reason
+  await seedSessionIfMissing({
+    sportId: badminton.id,
+    creatorId: players[0].id,
+    sessionDate: tomorrowStr,
+    sessionTime: '20:00',
+    startDateTime: new Date(`${tomorrowStr}T20:00:00.000Z`),
+    venue: 'Indoor Badminton Court 2',
+    teamA: JSON.stringify(['Rahul']),
+    teamB: JSON.stringify(['Rohan']),
+    additionalPlayersRequired: 2,
+    status: 'CANCELLED',
+    cancellationReason: 'Ground is unavailable due to maintenance work.',
+    cancelledAt: new Date(),
+    participants: {
+      create: [
+        { userId: players[1].id, team: 'Team A' },
+      ],
+    },
+  });
+
+  console.log('✓ Seeded sample upcoming, completed, and cancelled sessions');
+  console.log('--- Database seeding completed successfully! ---');
 }
 
 main()
   .catch((e) => {
-    console.error('Seed error:', e);
+    console.error('Seeding error:', e);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,32 +1,11 @@
-// Reports API for CampusFix
-import { api } from './client';
+import { apiRequest } from './client';
 
 export const reportsApi = {
-  getOverview: (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.startDate) query.append('startDate', params.startDate);
-    if (params.endDate) query.append('endDate', params.endDate);
-    const qs = query.toString();
-    return api.get(`/reports/overview${qs ? `?${qs}` : ''}`);
+  getSessionsReport: (startDate, endDate) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/reports/sessions${queryString}`);
   },
-
-  getCategories: (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.startDate) query.append('startDate', params.startDate);
-    if (params.endDate) query.append('endDate', params.endDate);
-    const qs = query.toString();
-    return api.get(`/reports/categories${qs ? `?${qs}` : ''}`);
-  },
-
-  getLocations: (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.startDate) query.append('startDate', params.startDate);
-    if (params.endDate) query.append('endDate', params.endDate);
-    const qs = query.toString();
-    return api.get(`/reports/locations${qs ? `?${qs}` : ''}`);
-  },
-
-  getTechnicians: () => api.get('/reports/technicians'),
-
-  getTrends: () => api.get('/reports/trends'),
 };

@@ -1,28 +1,16 @@
-// Auth Validators for CampusFix
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 
-const validateResult = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      message: 'Validation failed',
-      errors: errors.array().map((err) => ({ field: err.path, message: err.msg })),
-    });
-  }
-  next();
-};
-
-const validateSignup = [
+const signupValidator = [
   body('name')
     .trim()
     .notEmpty()
-    .withMessage('Full name is required')
+    .withMessage('Name is required')
     .isLength({ min: 2, max: 100 })
     .withMessage('Name must be between 2 and 100 characters'),
   body('email')
     .trim()
     .notEmpty()
-    .withMessage('Email address is required')
+    .withMessage('Email is required')
     .isEmail()
     .withMessage('Please provide a valid email address')
     .normalizeEmail(),
@@ -31,20 +19,9 @@ const validateSignup = [
     .withMessage('Password is required')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long'),
-  body('department')
-    .optional()
-    .trim()
-    .isLength({ max: 100 })
-    .withMessage('Department name must not exceed 100 characters'),
-  body('phone')
-    .optional()
-    .trim()
-    .isLength({ max: 20 })
-    .withMessage('Phone number must not exceed 20 characters'),
-  validateResult,
 ];
 
-const validateLogin = [
+const loginValidator = [
   body('email')
     .trim()
     .notEmpty()
@@ -52,23 +29,33 @@ const validateLogin = [
     .isEmail()
     .withMessage('Please provide a valid email address')
     .normalizeEmail(),
-  body('password').notEmpty().withMessage('Password is required'),
-  validateResult,
+  body('password')
+    .notEmpty()
+    .withMessage('Password is required'),
 ];
 
-const validateChangePassword = [
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
+const changePasswordValidator = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
   body('newPassword')
     .notEmpty()
     .withMessage('New password is required')
     .isLength({ min: 6 })
     .withMessage('New password must be at least 6 characters long'),
-  validateResult,
+  body('confirmNewPassword')
+    .notEmpty()
+    .withMessage('Confirm new password is required')
+    .custom((val, { req }) => {
+      if (val !== req.body.newPassword) {
+        throw new Error('New passwords do not match');
+      }
+      return true;
+    }),
 ];
 
 module.exports = {
-  validateSignup,
-  validateLogin,
-  validateChangePassword,
-  validateResult,
+  signupValidator,
+  loginValidator,
+  changePasswordValidator,
 };
